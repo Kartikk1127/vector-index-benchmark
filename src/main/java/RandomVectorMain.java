@@ -11,9 +11,9 @@ public class RandomVectorMain {
     public static void main(String[] args) throws InterruptedException {
 
         // configuration
-        int indexSize = 100000;
+        int indexSize = 10000;
         int dimensions = 128;
-        int queryCount = 10000;
+        int queryCount = 1000;
         int k = 10;
         long seed = 42;
 

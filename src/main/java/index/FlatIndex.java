@@ -1,7 +1,7 @@
 package index;
 
 import core.DistanceMetric;
-import core.SearchResult;
+import core.QueryResult;
 import core.Vector;
 import core.VectorIndex;
 
@@ -30,13 +30,13 @@ public class FlatIndex implements VectorIndex {
     }
 
     @Override
-    public List<SearchResult> search(float[] query, int k, String dataset) {
-        List<SearchResult> result = new ArrayList<>();
+    public List<QueryResult> search(float[] query, int k, String dataset) {
+        List<QueryResult> result = new ArrayList<>();
         for (Vector vector : vectors) {
-            float distance = DistanceMetric.calculateDistance(query, vector.getData(), dataset);
+            float distance = DistanceMetric.calculateDistance(query, vector.vector(), dataset);
             distanceCalculations++;
-            SearchResult searchResult = new SearchResult(vector.getId(), distance);
-            result.add(searchResult);
+            QueryResult queryResult = new QueryResult(vector.id(), distance);
+            result.add(queryResult);
         }
         Collections.sort(result);
         return result.subList(0, Math.min(k, result.size()));
@@ -50,5 +50,10 @@ public class FlatIndex implements VectorIndex {
     @Override
     public void resetDistanceCalculations() {
         this.distanceCalculations = 0;
+    }
+
+    @Override
+    public String getName() {
+        return "FLAT";
     }
 }

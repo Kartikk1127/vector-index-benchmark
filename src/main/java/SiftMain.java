@@ -1,10 +1,11 @@
 import benchmark.BenchmarkRunner;
 import benchmark.Metrics;
-import core.SearchResult;
+import core.QueryResult;
 import core.Vector;
 import core.VectorIndex;
 import dataset.DatasetLoader;
 import index.FlatIndex;
+import index.HNSWIndex;
 
 import java.io.IOException;
 import java.util.List;
@@ -13,17 +14,18 @@ public class SiftMain {
     public static void main(String[] args) throws IOException, InterruptedException {
 
         int k = 10;
-        List<Vector> indexVectors = DatasetLoader.loadFVectors("/Users/kartikeysrivastava/Desktop/projects/dataset/siftsmall-10k/siftsmall_base.fvecs");
-        List<Vector> queryVectors = DatasetLoader.loadFVectors("/Users/kartikeysrivastava/Desktop/projects/dataset/siftsmall-10k/siftsmall_query.fvecs");
-//        List<Vector> indexVectors = DatasetLoader.loadFVectors("/Users/kartikeysrivastava/Desktop/projects/dataset/sift-1M/sift_base.fvecs");
-//        List<Vector> queryVectors = DatasetLoader.loadFVectors("/Users/kartikeysrivastava/Desktop/projects/dataset/sift-1M/sift_query.fvecs");
+//        List<Vector> indexVectors = DatasetLoader.loadFVectors("/Users/kartikeysrivastava/Desktop/projects/dataset/siftsmall-10k/siftsmall_base.fvecs");
+//        List<Vector> queryVectors = DatasetLoader.loadFVectors("/Users/kartikeysrivastava/Desktop/projects/dataset/siftsmall-10k/siftsmall_query.fvecs");
+        List<Vector> indexVectors = DatasetLoader.loadFVectors("/Users/kartikeysrivastava/Desktop/projects/dataset/sift-1M/sift_base.fvecs");
+        List<Vector> queryVectors = DatasetLoader.loadFVectors("/Users/kartikeysrivastava/Desktop/projects/dataset/sift-1M/sift_query.fvecs");
 
 
-        System.out.println("Creating flat index...");
-        VectorIndex index = new FlatIndex();
+//        VectorIndex index = new FlatIndex();
+        VectorIndex index = new HNSWIndex(16, 100, 100);
+        System.out.println("Creating" + index.getName() +  " index...");
 
         // run the benchmark
-        System.out.println("Running benchmark");
+        System.out.println("Running benchmark using : " + index.getName() + " index" );
         Metrics metrics = BenchmarkRunner.run(index, indexVectors, queryVectors, k, "sift");
 
         // print results
@@ -37,11 +39,12 @@ public class SiftMain {
         System.out.println("Avg Distance Calculations: " + metrics.getAvgDistanceCalculations());
 
         // calculate recall
-        List<int []> groundTruth = DatasetLoader.loadIVecs("/Users/kartikeysrivastava/Desktop/projects/dataset/siftsmall-10k/siftsmall_groundtruth.ivecs");
+//        List<int []> groundTruthSmall = DatasetLoader.loadIVecs("/Users/kartikeysrivastava/Desktop/projects/dataset/siftsmall-10k/siftsmall_groundtruth.ivecs");
+        List<int []> groundTruthBig = DatasetLoader.loadIVecs("/Users/kartikeysrivastava/Desktop/projects/dataset/sift-1M/sift_groundtruth.ivecs");
 
         for (int i = 0; i < queryVectors.size(); i++) {
-            List<SearchResult> results = index.search(queryVectors.get(i).getData(), 10, "sift");
-            double recall = BenchmarkRunner.calculateRecall(results, groundTruth.get(i), 10);
+            List<QueryResult> results = index.search(queryVectors.get(i).vector(), 10, "sift");
+            double recall = BenchmarkRunner.calculateRecall(results, groundTruthBig.get(i), 10);
             System.out.println("Query " + i + " Recall@10: " + recall);
         }
 

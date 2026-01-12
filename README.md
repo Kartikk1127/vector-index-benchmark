@@ -47,3 +47,9 @@
         - \~74 QPS throughput
 - **Brute-force confirmation**
     - Distance calculations equal dataset size, confirming true flat (exhaustive) search behavior
+
+### HNSW Performance
+
+| Index Type     | Dataset Size | M  | efConstruction | efSearch | Build Time (ms) | Build Memory (MB) | P50 Latency (μs) | P95 Latency (μs) | P99 Latency (μs) | Throughput (QPS) | Avg Distance Calculations | Recall@10 (Avg) |
+|----------------|-------------:|---:|---------------:|---------:|----------------:|------------------:|-----------------:|-----------------:|-----------------:|-----------------:|--------------------------:|----------------:|
+| HNSW (Jelmark) |    1,000,000 | 16 |            100 |      100 |         476,688 |               910 |            626.0 |          812.166 |          917.375 |         1,713.50 |                  1,665.08 |           ~0.97 |

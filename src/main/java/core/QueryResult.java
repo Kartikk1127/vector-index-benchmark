@@ -1,14 +1,10 @@
 package core;
 
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-
-public class SearchResult implements Comparable<SearchResult> {
+public class QueryResult implements Comparable<QueryResult> {
     String id;
     float distance;
 
-    public SearchResult(String id, float distance) {
+    public QueryResult(String id, float distance) {
         this.id = id;
         this.distance = distance;
     }
@@ -22,7 +18,7 @@ public class SearchResult implements Comparable<SearchResult> {
     }
 
     @Override
-    public int compareTo(SearchResult otherDistance) {
+    public int compareTo(QueryResult otherDistance) {
         return Float.compare(this.distance, otherDistance.distance);
     }
 }

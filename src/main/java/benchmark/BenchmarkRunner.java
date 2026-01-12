@@ -1,13 +1,10 @@
 package benchmark;
 
-import core.SearchResult;
+import core.QueryResult;
 import core.Vector;
 import core.VectorIndex;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public class BenchmarkRunner {
 
@@ -35,7 +32,7 @@ public class BenchmarkRunner {
 
         // some warm up to let jvm optimize the code
         for (int i = 0; i < Math.min(100, queryVectors.size()); i ++) {
-            index.search(queryVectors.get(i).getData(), k, dataset);
+            index.search(queryVectors.get(i).vector(), k, dataset);
         }
 
         // query latency measurement
@@ -44,12 +41,14 @@ public class BenchmarkRunner {
 
         for (Vector queryVector : queryVectors) {
             long start = System.nanoTime();
-            index.search(queryVector.getData(),k, dataset);
+            index.search(queryVector.vector(),k, dataset);
             long end = System.nanoTime();
 
             long latencyNanos = end - start;
             latencies.add(latencyNanos);
         }
+
+        Collections.sort(latencies);
 
         // convert to microseconds and calculate percentiles
         double p50 = latencies.get(latencies.size()/2)/1000.0;
@@ -61,7 +60,7 @@ public class BenchmarkRunner {
         // throughput measurement
         long throughputStart = System.currentTimeMillis();
         for (Vector queryVector : queryVectors) {
-            index.search(queryVector.getData(), k, dataset);
+            index.search(queryVector.vector(), k, dataset);
         }
         long throughputEnd = System.currentTimeMillis();
         double totalSeconds = (throughputEnd - throughputStart) / 1000.0;
@@ -72,7 +71,7 @@ public class BenchmarkRunner {
         );
     }
 
-    public static double calculateRecall(List<SearchResult> results, int[] groundTruth, int k) {
+    public static double calculateRecall(List<QueryResult> results, int[] groundTruth, int k) {
         Set<String> resultIds = new HashSet<>();
         for (int i = 0; i < Math.min(k, results.size()); i ++) {
             resultIds.add(results.get(i).getId());

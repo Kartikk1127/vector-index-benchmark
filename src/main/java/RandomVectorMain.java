@@ -7,13 +7,13 @@ import index.FlatIndex;
 
 import java.util.List;
 
-public class Main {
-    public static void main(String[] args) {
+public class RandomVectorMain {
+    public static void main(String[] args) throws InterruptedException {
 
         // configuration
-        int indexSize = 1000;
+        int indexSize = 100000;
         int dimensions = 128;
-        int queryCount = 100;
+        int queryCount = 10000;
         int k = 10;
         long seed = 42;
 
@@ -27,7 +27,7 @@ public class Main {
 
         // run the benchmark
         System.out.println("Running benchmark");
-        Metrics metrics = BenchmarkRunner.run(index, indexVectors, queryVectors, k);
+        Metrics metrics = BenchmarkRunner.run(index, indexVectors, queryVectors, k, "random");
 
         // print results
         System.out.println("\n=== Benchmark Results ===");

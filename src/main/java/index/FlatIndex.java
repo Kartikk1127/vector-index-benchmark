@@ -30,10 +30,10 @@ public class FlatIndex implements VectorIndex {
     }
 
     @Override
-    public List<SearchResult> search(float[] query, int k) {
+    public List<SearchResult> search(float[] query, int k, String dataset) {
         List<SearchResult> result = new ArrayList<>();
         for (Vector vector : vectors) {
-            float distance = DistanceMetric.cosineDistance(query, vector.getData());
+            float distance = DistanceMetric.calculateDistance(query, vector.getData(), dataset);
             distanceCalculations++;
             SearchResult searchResult = new SearchResult(vector.getId(), distance);
             result.add(searchResult);

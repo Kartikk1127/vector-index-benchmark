@@ -4,7 +4,8 @@ import core.QueryResult;
 import core.Vector;
 import core.VectorIndex;
 import dataset.DatasetLoader;
-import index.HNSWIndex;
+import index.JVectorHNSWIndex;
+import index.JelmarkHNSWIndex;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -17,8 +18,7 @@ public class SiftMain {
         List<Vector> indexVectors = DatasetLoader.loadFVectors("/Users/kartikeysrivastava/Desktop/projects/dataset/siftsmall-10k/siftsmall_base.fvecs");
         List<Vector> queryVectors = DatasetLoader.loadFVectors("/Users/kartikeysrivastava/Desktop/projects/dataset/siftsmall-10k/siftsmall_query.fvecs");
 
-
-        VectorIndex index = new HNSWIndex(8, 200, 200);
+        VectorIndex index = new JVectorHNSWIndex(8, 100, 100);
         System.out.println("Creating " + index.getName() +  " index on a " + indexVectors.size() + " dataset");
 
         System.out.println("Running benchmark using : " + index.getName() + " index" );

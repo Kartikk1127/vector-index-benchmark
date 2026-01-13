@@ -128,7 +128,7 @@
 - Increase `efSearch` to **150–300** to compensate for deeper graph traversal
 
 
-## Recommended Parameters by Scale
+##### Recommended Parameters by Scale
 
 | Dataset Size |  M | efConstruction | efSearch | Reasoning                    |
 |-------------:|---:|---------------:|---------:|------------------------------|
@@ -136,3 +136,15 @@
 |         100K | 12 |            100 |  150–200 | Slightly denser graph        |
 |           1M | 16 |            100 |  200–400 | Compensate for scale         |
 |          10M | 24 |            200 |     500+ | Heavy compensation needed    |
+
+
+## JVector-HNSW Benchmark Results (10K Dataset)
+
+| Index Type   | Dataset Size |  M | efConstruction | efSearch | Build Time (ms) | Build Memory (MB) | P50 Latency (μs) | P95 Latency (μs) | P99 Latency (μs) | Throughput (QPS) | Avg Distance Calculations | Recall@10 (Avg) |
+|--------------|-------------:|---:|---------------:|---------:|----------------:|------------------:|-----------------:|-----------------:|-----------------:|-----------------:|--------------------------:|----------------:|
+| JVector-HNSW |       10,000 | 16 |            200 |      200 |             657 |                20 |          183.083 |          263.917 |          321.958 |         5,882.35 |                         - |           1.000 |
+| JVector-HNSW |       10,000 | 16 |            100 |      200 |             666 |                20 |          176.292 |          207.917 |          217.625 |         5,555.56 |                         - |           1.000 |
+| JVector-HNSW |       10,000 | 16 |            100 |      100 |             631 |                20 |          115.625 |          142.416 |          165.833 |        10,000.00 |                         - |           1.000 |
+| JVector-HNSW |       10,000 |  8 |            200 |      200 |             611 |                19 |          130.375 |          151.875 |          175.542 |         8,333.33 |                         - |           0.995 |
+| JVector-HNSW |       10,000 |  8 |            100 |      200 |             683 |                19 |          135.500 |          169.250 |          183.833 |         7,692.31 |                         - |           0.995 |
+| JVector-HNSW |       10,000 |  8 |            100 |      100 |             689 |                19 |           84.625 |          106.792 |          134.042 |        12,500.00 |                         - |           0.994 |

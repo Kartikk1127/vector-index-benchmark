@@ -4,7 +4,7 @@ import core.QueryResult;
 import core.Vector;
 import core.VectorIndex;
 import dataset.DatasetLoader;
-import index.HNSWIndex;
+import index.JelmarkHNSWIndex;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,7 +24,7 @@ public class HDF5Main {
         List<int[]> groundTruth = DatasetLoader.loadHDF5GroundTruth(hdf5Path, "neighbors");
         System.out.println("Loaded ground truth for " + groundTruth.size() + " queries");
 
-        VectorIndex index = new HNSWIndex(16, 200, 200);
+        VectorIndex index = new JelmarkHNSWIndex(16, 200, 200);
         System.out.println("Creating " + index.getName() +  " index on a " + indexVectors.size() + " dataset");
 
         System.out.println("Running benchmark using : " + index.getName() + " index" );

@@ -11,7 +11,7 @@ import core.VectorIndex;
 import java.util.ArrayList;
 import java.util.List;
 
-public class HNSWIndex implements VectorIndex {
+public class JelmarkHNSWIndex implements VectorIndex {
     private final int m;
     private final int efConstruction;
     private final int efSearch;
@@ -19,7 +19,7 @@ public class HNSWIndex implements VectorIndex {
     private long distanceCalculations = 0;
     private final DistanceFunction<float[], Float> distanceFunction;
 
-    public HNSWIndex(int m, int efConstruction, int efSearch) {
+    public JelmarkHNSWIndex(int m, int efConstruction, int efSearch) {
         this.m = m;
         this.efConstruction = efConstruction;
         this.efSearch = efSearch;
@@ -95,6 +95,6 @@ public class HNSWIndex implements VectorIndex {
 
     @Override
     public String getName() {
-        return "HNSW";
+        return "JelMark-HNSW";
     }
 }

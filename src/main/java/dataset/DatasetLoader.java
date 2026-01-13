@@ -1,6 +1,8 @@
 package dataset;
 
 import core.Vector;
+import io.jhdf.HdfFile;
+import io.jhdf.api.Dataset;
 
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
@@ -8,6 +10,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -71,6 +74,36 @@ public class DatasetLoader {
 
             bis.close();
         }
+        return groundTruth;
+    }
+
+    public static List<Vector> loadHDF5Vectors(String filepath, String datasetName) throws IOException {
+        List<Vector> vectors = new ArrayList<>();
+
+        try (HdfFile hdfFile = new HdfFile(Paths.get(filepath))) {
+            Dataset dataset = hdfFile.getDatasetByPath(datasetName);
+            float[][] data = (float[][]) dataset.getData();
+
+            for (int i = 0; i < data.length; i++) {
+                vectors.add(new Vector("vec_" + i, data[i]));
+            }
+        }
+
+        return vectors;
+    }
+
+    public static List<int[]> loadHDF5GroundTruth(String filepath, String datasetName) throws IOException {
+        List<int[]> groundTruth = new ArrayList<>();
+
+        try (HdfFile hdfFile = new HdfFile(Paths.get(filepath))) {
+            Dataset dataset = hdfFile.getDatasetByPath(datasetName);
+            int[][] data = (int[][]) dataset.getData();
+
+            for (int[] neighbors : data) {
+                groundTruth.add(neighbors);
+            }
+        }
+
         return groundTruth;
     }
 }

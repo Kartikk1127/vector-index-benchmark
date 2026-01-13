@@ -11,6 +11,7 @@ repositories {
 
 dependencies {
     implementation("com.github.jelmerk:hnswlib-core:1.2.1")
+    implementation("io.jhdf:jhdf:0.6.10")
     testImplementation platform('org.junit:junit-bom:5.9.1')
     testImplementation 'org.junit.jupiter:junit-jupiter'
 }

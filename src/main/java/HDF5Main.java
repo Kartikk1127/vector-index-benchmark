@@ -10,15 +10,21 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class SiftMain {
+public class HDF5Main {
     public static void main(String[] args) throws IOException, InterruptedException {
 
         int k = 10;
-        List<Vector> indexVectors = DatasetLoader.loadFVectors("/Users/kartikeysrivastava/Desktop/projects/dataset/siftsmall-10k/siftsmall_base.fvecs");
-        List<Vector> queryVectors = DatasetLoader.loadFVectors("/Users/kartikeysrivastava/Desktop/projects/dataset/siftsmall-10k/siftsmall_query.fvecs");
+        String hdf5Path = "/Users/kartikeysrivastava/Desktop/projects/dataset/glove-100-angular.hdf5";
+        List<Vector> indexVectors = DatasetLoader.loadHDF5Vectors(hdf5Path, "train");
+        System.out.println("Loaded " + indexVectors.size() + " train vectors");
 
+        List<Vector> queryVectors = DatasetLoader.loadHDF5Vectors(hdf5Path, "test");
+        System.out.println("Loaded " + queryVectors.size() + " query vectors");
 
-        VectorIndex index = new HNSWIndex(8, 200, 200);
+        List<int[]> groundTruth = DatasetLoader.loadHDF5GroundTruth(hdf5Path, "neighbors");
+        System.out.println("Loaded ground truth for " + groundTruth.size() + " queries");
+
+        VectorIndex index = new HNSWIndex(16, 200, 200);
         System.out.println("Creating " + index.getName() +  " index on a " + indexVectors.size() + " dataset");
 
         System.out.println("Running benchmark using : " + index.getName() + " index" );
@@ -33,12 +39,10 @@ public class SiftMain {
         System.out.println("Throughput: " + metrics.getThroughputQPS() + " QPS");
         System.out.println("Avg Distance Calculations: " + metrics.getAvgDistanceCalculations());
 
-        List<int []> groundTruthBig = DatasetLoader.loadIVecs("/Users/kartikeysrivastava/Desktop/projects/dataset/siftsmall-10k/siftsmall_groundtruth.ivecs");
-
         List<Double> recalls = new ArrayList<>();
         for (int i = 0; i < queryVectors.size(); i++) {
             List<QueryResult> results = index.search(queryVectors.get(i).vector(), 10, "sift");
-            double recall = BenchmarkRunner.calculateRecall(results, groundTruthBig.get(i), 10);
+            double recall = BenchmarkRunner.calculateRecall(results, groundTruth.get(i), 10);
             recalls.add(recall);
         }
 
@@ -48,5 +52,6 @@ public class SiftMain {
         double maxRecall = recalls.stream().mapToDouble(d->d).max().orElse(0.0);
 
         System.out.println("Recall@10 - Avg: " + avgRecall + ", Min: " + minRecall + ", Max: " + maxRecall);
+
     }
 }

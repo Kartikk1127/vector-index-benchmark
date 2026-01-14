@@ -33,7 +33,7 @@ public class FlatIndex implements VectorIndex {
     public List<QueryResult> search(float[] query, int k, String dataset) {
         List<QueryResult> result = new ArrayList<>();
         for (Vector vector : vectors) {
-            float distance = DistanceMetric.calculateDistance(query, vector.vector(), dataset);
+            float distance = new DistanceMetric().calculateDistance(query, vector.vector(), dataset);
             distanceCalculations++;
             QueryResult queryResult = new QueryResult(vector.id(), distance);
             result.add(queryResult);

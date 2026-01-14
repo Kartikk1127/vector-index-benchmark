@@ -12,7 +12,7 @@ public class DistanceMetric {
         return 1.0f - product;
     }
 
-    public static float euclideanDistance(float[] vector1, float [] vector2) {
+    public float euclideanDistance(float[] vector1, float [] vector2) {
         if (vector1.length != vector2.length) {
             throw new IllegalArgumentException("Vectors must have the same length.");
         }
@@ -24,7 +24,7 @@ public class DistanceMetric {
         return (float) Math.sqrt(sum);
     }
 
-    public static float calculateDistance(float[] query, float[] data, String dataset) {
+    public float calculateDistance(float[] query, float[] data, String dataset) {
         return switch (dataset) {
             case "random" -> cosineDistance(query, data);
             case "sift" -> euclideanDistance(query, data);

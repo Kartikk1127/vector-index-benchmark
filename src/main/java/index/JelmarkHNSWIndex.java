@@ -26,7 +26,7 @@ public class JelmarkHNSWIndex implements VectorIndex {
 
         this.distanceFunction = (vector1, vector2) -> {
             distanceCalculations++;
-            return DistanceMetric.euclideanDistance(vector1, vector2);
+            return new DistanceMetric().euclideanDistance(vector1, vector2);
         };
     }
     @Override

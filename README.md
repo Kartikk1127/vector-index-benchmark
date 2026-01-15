@@ -173,3 +173,12 @@
 | HNSW       | JVector | M=8, efC=100, efS=100  |             689 |                19 |             84.6 |            106.8 |            134.0 |            12500 |                  - |     0.994 | Fastest queries        |
 | HNSW       | JVector | M=16, efC=100, efS=100 |             631 |                20 |            115.6 |            142.4 |            165.8 |            10000 |                  - |     1.000 | High recall            |
 | HNSW       | JVector | M=16, efC=200, efS=200 |             657 |                20 |            183.1 |            263.9 |            322.0 |             5882 |                  - |     1.000 | Slower, exact recall   |
+
+### Q: When is FLAT faster?
+FLAT is faster when you have few queries relative to dataset size. The formula is: if total queries × query_time < build_time, use FLAT. This happens with infrequent searches, validation workloads, or very small datasets under 1K vectors. Our benchmarks showed FLAT taking 1ms per query but zero build time, so 100 queries on 1M vectors is faster than building an index.
+
+### Q: When does HNSW win?
+HNSW wins for high-query-volume production systems needing low latency. It's 10x faster than FLAT and 2x faster than IVF on queries, achieving sub-millisecond response times. We saw 85μs queries with 99.4% recall. The build cost amortizes quickly - after 10K queries on 10K vectors, HNSW has already paid for itself. It's the standard for real-time search, recommendations, and RAG applications.
+
+### Q: When does IVF make sense?
+IVF makes sense for batch processing, GPU acceleration, and when algorithmic simplicity is valued. It's k-means clustering which any engineer understands, versus HNSW's complex graph navigation. IVF works well for offline analytics like finding all duplicate images in a corpus, or for GPU deployment where parallelism matters more than sequential speed. It's also easier to debug and tune for teams without deep ANN expertise.

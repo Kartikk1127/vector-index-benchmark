@@ -1,4 +1,4 @@
-package index;
+package index.hnsw;
 
 import core.QueryResult;
 import core.Vector;

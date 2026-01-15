@@ -9,13 +9,13 @@ public class KMeans {
     private final int maxIterations;
     private List<Vector> centroids;
     private final Random random;
-    private final DistanceMetric distanceMetric;
+    private final int dimension;
 
-    public KMeans(int nClusters, int maxIterations, DistanceMetric distanceMetric) {
+    public KMeans(int nClusters, int maxIterations) {
         this.nClusters = nClusters;
         this.maxIterations = maxIterations;
         this.random = new Random(42);
-        this.distanceMetric = distanceMetric;
+        this.dimension = 128;
     }
 
     // run k-means clustering on the dataset
@@ -93,12 +93,11 @@ public class KMeans {
             if (cluster.isEmpty()) continue;
 
             // calculate mean of all vectors in a cluster
-            int dimension = cluster.get(i).dimensions();
             float [] newCentroid = new float[dimension];
 
             for (Vector v : cluster) {
                 for (int d = 0; d < dimension; d++) {
-                    newCentroid[d] = v.vector()[d];
+                    newCentroid[d] += v.vector()[d];
                 }
             }
 
@@ -107,7 +106,7 @@ public class KMeans {
             }
 
             //check if centroid changed significantly
-            float distance = distanceMetric.euclideanDistance(centroids.get(i).vector(), newCentroid);
+            float distance = new DistanceMetric().euclideanDistance(centroids.get(i).vector(), newCentroid);
             if (distance > 0.01f) {
                 changed = true;
             }
@@ -121,10 +120,10 @@ public class KMeans {
     // find the nearest centroid (used during build)
     public int findNearestCentroid(float[] vector) {
         int nearest = 0;
-        float minDistance = distanceMetric.euclideanDistance(vector, centroids.get(0).vector());
+        float minDistance = new DistanceMetric().euclideanDistance(vector, centroids.get(0).vector());
 
         for (int i = 1; i < nClusters; i++) {
-            float distance = distanceMetric.euclideanDistance(vector, centroids.get(i).vector());
+            float distance = new DistanceMetric().euclideanDistance(vector, centroids.get(i).vector());
             if (distance < minDistance) {
                 minDistance = distance;
                 nearest = i;
@@ -137,7 +136,7 @@ public class KMeans {
     public List<Integer> findNearestCentroids(float [] query, int nProbe) {
         List<CentroidDistance> distances = new ArrayList<>();
         for (int i = 0; i < nClusters; i++) {
-            float distance = distanceMetric.euclideanDistance(query, centroids.get(i).vector());
+            float distance = new DistanceMetric().euclideanDistance(query, centroids.get(i).vector());
             distances.add(new CentroidDistance(i, distance));
         }
         Collections.sort(distances);

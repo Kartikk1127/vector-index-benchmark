@@ -1,4 +1,4 @@
-package index;
+package index.flat;
 
 import core.DistanceMetric;
 import core.QueryResult;

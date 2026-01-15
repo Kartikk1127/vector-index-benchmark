@@ -3,7 +3,7 @@ import benchmark.Metrics;
 import core.Vector;
 import core.VectorIndex;
 import dataset.RandomVectorGenerator;
-import index.FlatIndex;
+import index.flat.FlatIndex;
 
 import java.util.List;
 

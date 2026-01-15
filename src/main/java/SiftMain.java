@@ -4,8 +4,7 @@ import core.QueryResult;
 import core.Vector;
 import core.VectorIndex;
 import dataset.DatasetLoader;
-import index.JVectorHNSWIndex;
-import index.JelmarkHNSWIndex;
+import index.ivf.IVFIndex;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -17,8 +16,9 @@ public class SiftMain {
         int k = 10;
         List<Vector> indexVectors = DatasetLoader.loadFVectors("/Users/kartikeysrivastava/Desktop/projects/dataset/siftsmall-10k/siftsmall_base.fvecs");
         List<Vector> queryVectors = DatasetLoader.loadFVectors("/Users/kartikeysrivastava/Desktop/projects/dataset/siftsmall-10k/siftsmall_query.fvecs");
+        List<int []> groundTruthBig = DatasetLoader.loadIVecs("/Users/kartikeysrivastava/Desktop/projects/dataset/siftsmall-10k/siftsmall_groundtruth.ivecs");
 
-        VectorIndex index = new JVectorHNSWIndex(8, 100, 100);
+        VectorIndex index = new IVFIndex(50,5 );
         System.out.println("Creating " + index.getName() +  " index on a " + indexVectors.size() + " dataset");
 
         System.out.println("Running benchmark using : " + index.getName() + " index" );
@@ -32,8 +32,6 @@ public class SiftMain {
         System.out.println("Query Latency P99: " + metrics.getQueryLatencyP99Micros() + " μs");
         System.out.println("Throughput: " + metrics.getThroughputQPS() + " QPS");
         System.out.println("Avg Distance Calculations: " + metrics.getAvgDistanceCalculations());
-
-        List<int []> groundTruthBig = DatasetLoader.loadIVecs("/Users/kartikeysrivastava/Desktop/projects/dataset/siftsmall-10k/siftsmall_groundtruth.ivecs");
 
         List<Double> recalls = new ArrayList<>();
         for (int i = 0; i < queryVectors.size(); i++) {

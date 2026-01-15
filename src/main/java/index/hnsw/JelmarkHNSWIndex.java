@@ -1,4 +1,4 @@
-package index;
+package index.hnsw;
 
 import com.github.jelmerk.hnswlib.core.DistanceFunction;
 import com.github.jelmerk.hnswlib.core.SearchResult;

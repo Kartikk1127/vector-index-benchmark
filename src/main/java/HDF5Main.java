@@ -4,7 +4,7 @@ import core.QueryResult;
 import core.Vector;
 import core.VectorIndex;
 import dataset.DatasetLoader;
-import index.JelmarkHNSWIndex;
+import index.hnsw.JelmarkHNSWIndex;
 
 import java.io.IOException;
 import java.util.ArrayList;

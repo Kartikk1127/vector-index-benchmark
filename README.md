@@ -148,3 +148,28 @@
 | JVector-HNSW |       10,000 |  8 |            200 |      200 |             611 |                19 |          130.375 |          151.875 |          175.542 |         8,333.33 |                         - |           0.995 |
 | JVector-HNSW |       10,000 |  8 |            100 |      200 |             683 |                19 |          135.500 |          169.250 |          183.833 |         7,692.31 |                         - |           0.995 |
 | JVector-HNSW |       10,000 |  8 |            100 |      100 |             689 |                19 |           84.625 |          106.792 |          134.042 |        12,500.00 |                         - |           0.994 |
+
+
+### IVF Performance
+
+| Index Type | Dataset Size | nList | nProbe | Build Time (ms) | Build Memory (MB) | P50 Latency (μs) | P95 Latency (μs) | P99 Latency (μs) | Throughput (QPS) | Avg Distance Calculations | Recall@10 (Avg) |
+|------------|-------------:|------:|-------:|----------------:|------------------:|-----------------:|-----------------:|-----------------:|-----------------:|--------------------------:|----------------:|
+| IVF        |       10,000 |   100 |     10 |           1,034 |                11 |          185.459 |          268.917 |          314.042 |         5,000.00 |                  1,209.07 |           0.981 |
+| IVF        |       10,000 |   100 |     20 |           1,034 |                11 |          328.041 |          473.125 |          642.167 |         2,857.14 |                  2,276.38 |           0.998 |
+| IVF        |       10,000 |    50 |      5 |             651 |                11 |          206.041 |          300.875 |          317.250 |         4,761.90 |                  1,236.53 |           0.962 |
+
+## Unified Vector Index Comparison (10K Dataset, 128-D)
+
+| Index Type | Library | Configuration          | Build Time (ms) | Build Memory (MB) | P50 Latency (us) | P95 Latency (us) | P99 Latency (us) | Throughput (QPS) | Avg Distance Calcs | Recall@10 | Notes                  |
+|------------|---------|------------------------|----------------:|------------------:|-----------------:|-----------------:|-----------------:|-----------------:|-------------------:|----------:|------------------------|
+| Flat       | Custom  | Brute-force            |             213 |                10 |           1026.6 |           1047.9 |           1100.5 |              952 |              10000 |     1.000 | Exact search, baseline |
+| IVF        | Custom  | nList=100, nProbe=10   |            1034 |                11 |            185.5 |            268.9 |            314.0 |             5000 |               1209 |     0.981 | Fast, lower recall     |
+| IVF        | Custom  | nList=100, nProbe=20   |            1034 |                11 |            328.0 |            473.1 |            642.2 |             2857 |               2276 |     0.998 | Higher recall          |
+| IVF        | Custom  | nList=50, nProbe=5     |             651 |                11 |            206.0 |            300.9 |            317.3 |             4762 |               1237 |     0.962 | Faster build           |
+| HNSW       | Jelmark | M=8, efC=100, efS=100  |            1211 |                16 |            103.8 |            130.5 |            146.3 |            10000 |                639 |     0.998 | Best trade-off         |
+| HNSW       | Jelmark | M=8, efC=200, efS=200  |            1845 |                16 |            174.2 |            213.7 |            348.3 |             6667 |               1056 |     1.000 | Max recall             |
+| HNSW       | Jelmark | M=16, efC=100, efS=100 |            1323 |                17 |            115.8 |            155.4 |            183.2 |            10000 |                831 |     0.998 | More memory            |
+| HNSW       | Jelmark | M=16, efC=200, efS=200 |            2071 |                17 |            197.5 |            249.3 |            393.2 |             5556 |               1375 |     1.000 | Overkill for 10K       |
+| HNSW       | JVector | M=8, efC=100, efS=100  |             689 |                19 |             84.6 |            106.8 |            134.0 |            12500 |                  - |     0.994 | Fastest queries        |
+| HNSW       | JVector | M=16, efC=100, efS=100 |             631 |                20 |            115.6 |            142.4 |            165.8 |            10000 |                  - |     1.000 | High recall            |
+| HNSW       | JVector | M=16, efC=200, efS=200 |             657 |                20 |            183.1 |            263.9 |            322.0 |             5882 |                  - |     1.000 | Slower, exact recall   |

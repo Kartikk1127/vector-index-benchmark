@@ -152,7 +152,6 @@ vector-index-benchmark/
 ### 3. IVF (Inverted File Index)
 - K-means clustering + two-phase search
 - Simpler than HNSW (easier to debug)
-- Good for batch processing / GPU acceleration
 
 *Read [Theory.md](Theory.md) for detailed explanations.*
 
@@ -188,7 +187,6 @@ vector-index-benchmark/
 ### When to use IVF?
 
 - Batch processing (offline analytics)
-- GPU deployment (better parallelization)
 - Teams preferring simpler algorithms (k-means vs graphs)
 - **Optimal config for 10K:** nList=50, nProbe=5
 

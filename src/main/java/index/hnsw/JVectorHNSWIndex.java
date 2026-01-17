@@ -126,4 +126,14 @@ public class JVectorHNSWIndex implements VectorIndex {
     public String getName() {
         return "JVector-HNSW";
     }
+
+    @Override
+    public void insert(Vector vector) {
+
+    }
+
+    @Override
+    public void delete(String vectorId) {
+
+    }
 }

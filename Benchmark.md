@@ -28,6 +28,29 @@
 | Random  |    100,000 | 128 |  10,000 | 10 |        220 |          69 | 13,087.5 | 13,217.4 | 14,154.7 |    74 |        100,000 |  100%  |
 | SIFT    |     10,000 | 128 |     100 | 10 |        213 |          10 |  1,026.6 |  1,047.9 |  1,100.5 |   952 |         10,000 |  100%  |
 
+### Dynamic Benchmark — Flat Index
+
+| Test Phase              | Index Size (Vectors) | Operation      | Build Time (ms) | P50 Latency (μs) | P95 Latency (μs) | P99 Latency (μs) | Throughput (QPS / ops/sec) | Avg Distance Calculations | Performance Impact |
+|-------------------------|---------------------:|----------------|----------------:|-----------------:|-----------------:|-----------------:|---------------------------:|--------------------------:|--------------------|
+| Initial Build + Query   |               10,000 | Build + Search |             212 |         1,136.63 |                — |                — |                 783.70 QPS |                    10,000 | Baseline           |
+| Insert Performance      |               11,000 | Insert 1,000   |               — |             0.08 |             0.08 |             0.21 |      1,000,000 inserts/sec |                         — | —                  |
+| Search After Inserts    |               11,000 | Search         |               — |         1,365.04 |                — |                — |                 730.99 QPS |                    11,000 | **20.1% slower**   |
+| Search Before Deletions |               11,000 | Search         |               — |         1,359.79 |         1,430.25 |                — |                 736.92 QPS |                    11,000 | Baseline           |
+| Delete Performance      |                    — | Delete 5,000   |             165 |                — |                — |                — |                          — |                         — | —                  |
+| Search After Deletions  |                6,000 | Search         |               — |           696.88 |           736.08 |                — |               1,434.72 QPS |                     6,000 | **48.8% faster**   |
+| Additional Deletes      |                5,000 | Delete 1,000   |              20 |            20.00 |            22.17 |            25.79 |         50,000 deletes/sec |                         — | —                  |
+
+### Final Summary
+
+| Metric                     | Value        |
+|----------------------------|--------------|
+| Initial Index Size         | 10,000       |
+| Vectors Inserted           | 1,000        |
+| Vectors Deleted            | 6,000        |
+| Final Index Size           | 5,000        |
+| Insert-Induced Degradation | 20.1% slower |
+| Delete-Induced Improvement | 48.8% faster |
+
 ---
 
 ## HNSW Performance (Jelmark)

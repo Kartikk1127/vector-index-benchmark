@@ -21,7 +21,7 @@ public class FlatIndex implements VectorIndex {
 
     @Override
     public void build(List<Vector> vectors) {
-        this.vectors = vectors;
+        this.vectors = new ArrayList<>(vectors);
     }
 
     @Override
@@ -55,5 +55,15 @@ public class FlatIndex implements VectorIndex {
     @Override
     public String getName() {
         return "FLAT";
+    }
+
+    @Override
+    public void insert(Vector vector) {
+        vectors.add(vector);
+    }
+
+    @Override
+    public void delete(String vectorId) {
+        vectors.removeIf(vector -> vector.id().equals(vectorId));
     }
 }

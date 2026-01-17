@@ -9,4 +9,6 @@ public interface VectorIndex {
     long getDistanceCalculations();
     void resetDistanceCalculations();
     String getName();
+    void insert(Vector vector);
+    void delete(String vectorId);
 }

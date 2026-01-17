@@ -9,6 +9,7 @@ import java.util.Random;
 public class RandomVectorGenerator {
     long seed;
     private final Random random;
+    private int nextId = 0;
 
     public RandomVectorGenerator(long seed) {
         this.seed = seed;
@@ -26,7 +27,8 @@ public class RandomVectorGenerator {
             for (int dim = 0; dim < dimensions; dim ++) {
                 vector[dim] /= (float) magnitude;
             }
-            Vector v = new Vector("vec_" + i, vector);
+            Vector v = new Vector("vec_" + nextId, vector);
+            nextId++;
             vectorList.add(v);
         }
         return vectorList;

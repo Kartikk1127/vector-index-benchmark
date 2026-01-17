@@ -71,6 +71,141 @@ public class BenchmarkRunner {
         );
     }
 
+    public static InsertMetrics benchmarkInserts(
+            VectorIndex index,
+            List<Vector> vectorsToInsert
+    ) {
+        System.out.println("===Benchmarking Inserts===");
+        System.out.println("Inserting " + vectorsToInsert.size() + " vectors...");
+
+        List<Long> latencies = new ArrayList<>();
+        long totalStart = System.currentTimeMillis();
+
+        for (Vector vector : vectorsToInsert) {
+            long start = System.nanoTime();
+            index.insert(vector);
+            long end = System.nanoTime();
+
+            latencies.add(end - start);
+        }
+
+        long totalEnd = System.currentTimeMillis();
+
+        // calculate percentiles (convert to microseconds)
+        Collections.sort(latencies);
+        double p50 = latencies.get(latencies.size()/2) / 1000.0;
+        double p95 = latencies.get((int)(latencies.size()  * 0.95)) / 1000.0;
+        double p99 = latencies.get((int)(latencies.size()  * 0.99)) / 1000.0;
+
+        // calculate throughput
+        double totalSeconds = (totalEnd - totalStart) / 1000.0;
+        double insertsPerSecond = vectorsToInsert.size()/totalSeconds;
+
+        return new InsertMetrics(
+                vectorsToInsert.size(),totalEnd-totalStart, p50,p95,p99, insertsPerSecond
+        );
+    }
+
+    public static DeleteMetrics benchmarkDeletes (
+            VectorIndex index,
+            List<String> idsToDelete
+    ) {
+        System.out.println("===Benchmarking deletes");
+        System.out.println("Deleting " + idsToDelete.size() + " vectors...");
+        List<Long> latencies = new ArrayList<>();
+
+        long totalStart = System.currentTimeMillis();
+
+        for (String vectorId : idsToDelete) {
+            long start = System.nanoTime();
+            index.delete(vectorId);
+            long end = System.nanoTime();
+
+            latencies.add(end - start);
+        }
+
+        long totalEnd = System.currentTimeMillis();
+
+        // calculate percentiles (convert to microseconds)
+        Collections.sort(latencies);
+        double p50 = latencies.get(latencies.size()/2) / 1000.0;
+        double p95 = latencies.get((int)(latencies.size()  * 0.95)) / 1000.0;
+        double p99 = latencies.get((int)(latencies.size()  * 0.99)) / 1000.0;
+
+        // calculate throughput
+        double totalSeconds = (totalEnd - totalStart) / 1000.0;
+        double deletesPerSecond = idsToDelete.size()/totalSeconds;
+
+        return new DeleteMetrics(
+                idsToDelete.size(), totalEnd- totalStart, p50, p95, p99, deletesPerSecond
+        );
+    }
+
+    public static SearchDegradationMetrics benchmarkSearchDegradation(
+            VectorIndex index,
+            List<Vector> queryVectors,
+            int k,
+            String dataset,
+            List<String> idsToDelete
+    ) throws InterruptedException {
+        System.out.println("===Benchmarking Search Degradation===");
+
+        // measure search performance before deletions
+        System.out.println("Measuring search performance BEFORE deletions...");
+        Metrics beforeMetrics = measureSearchOnly(index, queryVectors, k, dataset);
+
+        // delete vectors
+        System.out.println("Deleting " + idsToDelete.size() + " vectors...");
+        long deleteStart = System.currentTimeMillis();
+        for (String id : idsToDelete) {
+            index.delete(id);
+        }
+        long deleteTime = System.currentTimeMillis() - deleteStart;
+
+        // measure search performance after deletions
+        System.out.println("Measuring search performance AFTER deletions...");
+        Metrics afterMetrics = measureSearchOnly(index, queryVectors, k, dataset);
+
+        return new SearchDegradationMetrics(
+                beforeMetrics,afterMetrics,idsToDelete.size(),deleteTime
+        );
+    }
+
+    public static Metrics measureSearchOnly(VectorIndex index, List<Vector> queryVectors, int k, String dataset) {
+        for (int i = 0; i < Math.min(10, queryVectors.size()); i++) {
+            index.search(queryVectors.get(i).vector(), k , dataset);
+        }
+
+        // measure latency
+        List<Long> latencies = new ArrayList<>();
+        index.resetDistanceCalculations();
+
+        for (Vector queryVector : queryVectors) {
+            long start = System.nanoTime();
+            index.search(queryVector.vector(), k, dataset);
+            long end = System.nanoTime();
+            latencies.add(end - start);
+        }
+
+        Collections.sort(latencies);
+        double p50 = latencies.get(latencies.size()/2) / 1000.0;
+        double p95 = latencies.get((int)(latencies.size()  * 0.95)) / 1000.0;
+        double p99 = latencies.get((int)(latencies.size()  * 0.99)) / 1000.0;
+
+        double avgDistance = index.getDistanceCalculations() / (double) queryVectors.size();
+
+        // measure throughput
+        long throughputStart = System.currentTimeMillis();
+        for (Vector queryVector : queryVectors) {
+            index.search(queryVector.vector(), k , dataset);
+        }
+        long throughputEnd = System.currentTimeMillis();
+        double totalSeconds = (throughputEnd - throughputStart) / 1000.0;
+        double qps = queryVectors.size() / totalSeconds;
+
+        return new Metrics(0,0,p50,p95,p99,qps,avgDistance);
+    }
+
     public static double calculateRecall(List<QueryResult> results, int[] groundTruth, int k) {
         Set<String> resultIds = new HashSet<>();
         for (int i = 0; i < Math.min(k, results.size()); i ++) {

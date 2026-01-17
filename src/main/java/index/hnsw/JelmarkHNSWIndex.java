@@ -97,4 +97,14 @@ public class JelmarkHNSWIndex implements VectorIndex {
     public String getName() {
         return "JelMark-HNSW";
     }
+
+    @Override
+    public void insert(Vector vector) {
+
+    }
+
+    @Override
+    public void delete(String vectorId) {
+
+    }
 }

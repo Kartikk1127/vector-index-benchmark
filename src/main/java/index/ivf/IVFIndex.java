@@ -97,6 +97,16 @@ public class IVFIndex implements VectorIndex {
         return "IVF Index";
     }
 
+    @Override
+    public void insert(Vector vector) {
+
+    }
+
+    @Override
+    public void delete(String vectorId) {
+
+    }
+
     private void printClusterStatistics() {
         int minSize = Integer.MAX_VALUE;
         int maxSize = 0;

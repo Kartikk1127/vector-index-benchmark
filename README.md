@@ -1,311 +1,184 @@
-# Vector Index Benchmark
+# Vector Index — Benchmark Report
 
-> Comprehensive benchmarking of vector search algorithms (Flat, HNSW, IVF) on real datasets with production insights.
+## Features
 
----
+- **Multiple distance metrics**
+    - Euclidean (L2)
+    - Cosine similarity
+- **Comprehensive performance metrics**
+    - Build time
+    - Memory usage
+    - Latency percentiles (P50 / P95 / P99)
+    - Throughput (QPS)
+    - Average distance calculations
+- **Real dataset support**
+    - ANN Benchmarks format (`.fvecs` / `.ivecs`)
+    - Ground-truth validation for recall measurement
+- **Synthetic data generation**
+    - Normalized random vectors for controlled experiments
+***
 
-## Documentation
+## Benchmark Results
 
-| Document                         | Description                                            |
-|----------------------------------|--------------------------------------------------------|
-| **[Theory.md](Theory.md)**       | Algorithm concepts, parameters, and decision framework |
-| **[Benchmark.md](Benchmark.md)** | Complete benchmark results, analysis, and comparisons  |
-| **[JVector.md](JVector.md)**     | JVector-specific configuration and usage guide         |
+### Flat Index Performance
+    | Dataset  | Index Size | Dimensions | Query Count |  k | Build Time (ms) | Build Memory (MB) | P50 Latency (μs) | P95 Latency (μs) | P99 Latency (μs) | Throughput (QPS) | Avg Distance Calculations | Recall |
+    |----------|-----------:|-----------:|------------:|---:|----------------:|------------------:|-----------------:|-----------------:|-----------------:|-----------------:|--------------------------:|:------:|
+    | Random   |      1,000 |        128 |         100 | 10 |             214 |                 4 |            131.5 |          144.125 |          128.083 |         7,692.31 |                   1,000.0 |   —    |
+    | Random   |     10,000 |        128 |       1,000 | 10 |             215 |                10 |        1,008.625 |        1,021.333 |          991.167 |           950.57 |                  10,000.0 |   —    |
+    | Random   |    100,000 |        128 |      10,000 | 10 |             220 |                69 |         13,087.5 |       13,217.375 |       14,154.667 |            74.14 |                 100,000.0 |   —    |
+    | SIFT 10K |     10,000 |        128 |         100 | 10 |             213 |                10 |        1,026.625 |        1,047.875 |        1,100.542 |           952.38 |                  10,000.0 | 100%   |
 
----
-
-## Key Findings
-
-**TL;DR:** HNSW delivers the best performance for production workloads.
-
-| Index              | Build Time | Query Latency (P50) | Throughput | Recall | Best For                |
-|--------------------|------------|---------------------|------------|--------|-------------------------|
-| **Flat**           | Instant    | 1,026 μs            | 952 QPS    | 100%   | <1K vectors, validation |
-| **IVF**            | 651 ms     | 206 μs              | 4,762 QPS  | 96%    | Batch processing, GPU   |
-| **HNSW (jelmerk)** | 1,211 ms   | 103.8 μs            | 10,000 QPS | 99.8%  | Production standard     |
-| **HNSW (JVector)** | 689 ms     | 84.6 μs             | 12,500 QPS | 99.4%  | **Best overall**        |
-
-### Why JVector Wins
-
-- **1.76x faster build** than jelmerk (689ms vs 1,211ms)
-- **22% faster queries** (84.6μs vs 103.8μs)
-- **SIMD optimization** via Panama Vector API
-- **Native deletion support** (no external tools needed)
-- **Pure Java** (no JNI complexity)
-
-*See [Benchmark.md](Benchmark.md) for detailed analysis.*
-
----
-
-## Quick Start
-
-### Prerequisites
-
-- **Java 20+** (for SIMD support via `--add-modules jdk.incubator.vector`)
-- **Gradle** (wrapper included)
-- **16GB+ RAM** recommended for larger datasets (though i wasn't able to do a test on 1M dataset with 24gb ram-12 cores)
-
-### 1. Clone the Repository
-```bash
-git clone git@github.com:Kartikk1127/vector-index-benchmark.git
-cd vector-index-benchmark
-```
-
-### 2. Download SIFT Dataset
-
-Download the SIFT 10K dataset from [ANN Benchmarks](http://corpus-texmex.irisa.fr/):
-```bash
-# Create dataset directory
-mkdir -p datasets/sift
-
-# Download files
-wget http://corpus-texmex.irisa.fr/texmex/siftsmall.tar.gz
-tar -xzf siftsmall.tar.gz -C datasets/sift/
-
-# You should now have:
-# datasets/sift/siftsmall_base.fvecs
-# datasets/sift/siftsmall_query.fvecs
-# datasets/sift/siftsmall_groundtruth.ivecs
-```
-
-### 3. Update Dataset Path
-
-Edit `src/main/java/SiftMain.java.java`:
-```java
-// Update this line with your path
-List<Vector> indexVectors = DatasetLoader.loadFVectors("path/to/siftsmall_base.fvecs");
-List<Vector> queryVectors = DatasetLoader.loadFVectors("path/to/siftsmall_query.fvecs");
-List<int []> groundTruthBig = DatasetLoader.loadIVecs("path/to/siftsmall_groundtruth.ivecs");
-```
-
-### 4. Run Benchmarks (Make sure Java version >= 20 to get the SIMD optimization)
-```bash
-# Build the project
-./gradlew build
-
-# Run with SIMD support (recommended)
-./gradlew run --args="--add-modules jdk.incubator.vector"
-
-# Or run without SIMD
-./gradlew run
-```
-
-### 5. Expected Output
-```
-Loading SIFT dataset...
-Loaded 10000 base vectors
-Loaded 100 query vectors
-
-=== Benchmarking Flat Index ===
-Build Time: 213 ms
-P50 Latency: 1,026 μs
-Recall: 100%
-
-=== Benchmarking HNSW (JVector) ===
-Build Time: 689 ms
-P50 Latency: 84.6 μs
-Recall: 99.4%
-
-...
-```
-
----
-
-## Project Structure
-```
-vector-index-benchmark/
-├── src/main/java/
-│   ├── core/              # Core vector & distance logic
-│   │   ├── Vector.java
-│   │   ├── DistanceMetric.java
-│   │   └── QueryResult.java
-│   ├── index/             # Index implementations
-│   │   ├── VectorIndex.java
-│   │   ├── FlatIndex.java
-│   │   ├── HNSWIndex.java
-│   │   ├── JVectorHNSWIndex.java
-│   │   └── IVFIndex.java
-│   ├── benchmark/         # Benchmarking framework
-│   │   └── BenchmarkRunner.java
-│   └── utils/             # Dataset loading & utilities
-├── Theory.md              # Algorithm theory & design
-├── Benchmark.md           # Complete benchmark results
-├── JVector.md            # JVector configuration guide
-└── README.md             # This file
-```
-
----
-
-## Implemented Algorithms
-
-### 1. Flat Index (Brute Force)
-- **O(n)** exact search
-- 100% recall guarantee
-- Baseline for correctness validation
-
-### 2. HNSW (Hierarchical Navigable Small World)
-- Graph-based approximate search
-- Logarithmic complexity in practice
-- Best for high-QPS production systems
-- **Implementations:** jelmerk library + JVector
-
-### 3. IVF (Inverted File Index)
-- K-means clustering + two-phase search
-- Simpler than HNSW (easier to debug)
-- Good for batch processing / GPU acceleration
-
-*Read [Theory.md](Theory.md) for detailed explanations.*
-
----
-
-## Benchmark Features
-
-- **Multiple distance metrics:** Euclidean (L2), Cosine similarity
-- **Comprehensive metrics:** Build time, memory, latency percentiles (P50/P95/P99), throughput (QPS)
-- **Ground-truth validation:** Recall measured against SIFT ground truth
-- **Real datasets:** SIFT 10K (ANN Benchmarks format)
-- **Systematic parameter tuning:** Tested 10+ configurations per algorithm
-
----
-
-## Decision Guide
-
-### When to use Flat?
-
-**Use when:** `(total_queries × query_time) < build_time`
-
-- Very small datasets (<1K vectors)
-- Infrequent searches (validation, testing)
-- 100% recall required
-
-### When to use HNSW?
-
-- High query volume (1000s+ queries)
-- Real-time latency requirements (<1ms)
-- Production systems (search, recommendations, RAG)
-- **Optimal config for 10K:** M=8, efConstruction=100, efSearch=100
-
-### When to use IVF?
-
-- Batch processing (offline analytics)
-- GPU deployment (better parallelization)
-- Teams preferring simpler algorithms (k-means vs graphs)
-- **Optimal config for 10K:** nList=50, nProbe=5
-
-*See [Theory.md](Theory.md) for complete decision framework.*
-
----
+***
 
 ## Test Environment
+- **Machine**: MacBook Pro
+- **Memory**: 24 GB RAM
+- **Storage**: 512 GB SSD
+***
 
-- **Machine:** MacBook Pro
-- **CPU:** Apple Silicon / Intel (SIMD-capable)
-- **Memory:** 24 GB RAM
-- **Storage:** 512 GB SSD
-- **Java:** OpenJDK 20+ with Panama Vector API
+## Key Findings
+- **Perfect O(n) linear scaling**
+    - 10× increase in dataset size results in \~10× increase in query latency
+- **Correctness**
+    - 100% recall on **SIFT 10K**, validated against ground truth
+- **Performance at scale**
+    - At **100K vectors**:
+        - \~13 ms per query
+        - \~74 QPS throughput
+- **Brute-force confirmation**
+    - Distance calculations equal dataset size, confirming true flat (exhaustive) search behavior
 
----
+### HNSW Performance
 
-## Performance Highlights
+| Index Type | Dataset Size |  M | efConstruction | efSearch | Build Time (ms) | Build Memory (MB) | P50 Latency (μs) | P95 Latency (μs) | P99 Latency (μs) | Throughput (QPS) | Avg Distance Calculations | Recall@10 (Avg) |
+|------------|-------------:|---:|---------------:|---------:|----------------:|------------------:|-----------------:|-----------------:|-----------------:|-----------------:|--------------------------:|----------------:|
+| HNSW       |       10,000 | 16 |            200 |      200 |           2,071 |                17 |            197.5 |          249.334 |          393.209 |            5,556 |                   1,374.6 |          100.0% |
+| HNSW       |       10,000 | 16 |            100 |      200 |           1,283 |                17 |            183.2 |          223.875 |          241.458 |            6,250 |                   1,279.3 |           99.9% |
+| HNSW       |       10,000 | 16 |            100 |      100 |           1,323 |                17 |            115.8 |          155.416 |          183.208 |           10,000 |                     830.6 |           99.8% |
+| HNSW       |       10,000 |  8 |            100 |      100 |           1,211 |                16 |            103.8 |          130.458 |           146.25 |           10,000 |                     639.2 |           99.8% |
+| HNSW       |       10,000 |  8 |            200 |      100 |           1,881 |                16 |            107.5 |          139.208 |          150.416 |           11,111 |                     658.0 |           99.8% |
+| HNSW       |       10,000 |  8 |            200 |      200 |           1,845 |                16 |            174.2 |          213.667 |          348.292 |            6,667 |                   1,055.6 |          100.0% |
 
-### Build Time Comparison
-```
-Flat:    Instant (just load vectors)
-IVF:     651ms   (k-means clustering)
-JVector: 689ms   (graph construction)
-jelmerk: 1,211ms (graph construction)
-```
+#### What Each Parameter Does
 
-### Query Latency Comparison
-```
-Flat:    1,026 μs  (O(n) exhaustive search)
-IVF:     206 μs    (coarse + fine search)
-jelmerk: 103.8 μs  (graph navigation)
-JVector: 84.6 μs   (SIMD-optimized navigation) ⚡
-```
+##### 1. M (Graph Connectivity)
 
-### Distance Calculations (10K dataset)
-```
-Flat:    10,000  (exhaustive)
-HNSW:    639     (16x reduction!)
-IVF:     1,209   (depends on nProbe)
-```
+**M = 8 vs M = 16**
+- **Build time**
+  - M = 8 → \~1.2 s
+  - M = 16 → \~1.3–2.1 s
+- **Query latency**
+  - Largely similar across both values
+- **Memory usage**
+  - M = 8 → \~16 MB
+  - M = 16 → \~17 MB
+**Conclusion:**\
+`M = 8` is sufficient for a 10K-scale dataset.
+***
 
----
+##### 2. efConstruction (Build Quality)
+**efConstruction = 100 vs 200**
+- **Build time**
+  - `100` is \~40% faster (≈1.2 s vs ≈1.8 s)
+- **Query performance**
+  - Nearly identical
+- **Recall**
+  - No meaningful difference (99.8%–100%)
+**Conclusion:**\
+`efConstruction = 100` is enough; higher values waste build time.
+***
 
-## Customization
+##### 3. efSearch (Query Accuracy vs Speed) _(Most Important)_
+**efSearch = 100 vs 200**
+- **Latency**
+  - \~104 μs vs \~174–197 μs (**70–90% slower**)
+- **Distance calculations**
+  - \~639 vs \~1,055–1,375 (**\~65% more work**)
+- **Recall**
+  - 99.8% vs 100%
+**Conclusion:**\
+`efSearch = 100` achieves near-perfect recall at almost **2× speed**.
+***
 
-### Run Your Own Dataset
+#### 🏆 Best Configuration
+##### **M = 8, efConstruction = 100, efSearch = 100**
+**Why this is optimal:**
+- **Fastest queries:** \~103.8 μs\
+  _(Flat index ≈ 1,027 μs → \~10× slower)_
+- **Fastest build:** \~1.2 s
+- **Excellent recall:** 99.8%
+- **Fewest distance calculations:** 639\
+  _(Flat = 10,000 → \~16× reduction)_
+- **Lowest memory usage:** 16 MB
+***
 
-Implement the dataset loader in `utils/DatasetLoader.java`:
-```java
-public static List<Vector> loadCustomVectors(String path) {
-    // Your loading logic
-}
-```
+#### Production Recommendations
+##### For 10K-scale datasets
+- **Recommended configuration**
+  - `M = 8`
+  - `efConstruction = 100`
+  - `efSearch = 100`
+- **If 100% recall is required**
+  - Increase `efSearch` to `200`
+  - Accept \~70% slower queries
+***
 
-### Add New Index Implementation
+##### For 1M-scale datasets
+- Keep the same build parameters
+- Increase `efSearch` to **150–300** to compensate for deeper graph traversal
 
-1. Implement `VectorIndex` interface
-2. Add to `Main.java`
-3. Run benchmarks
 
-### Tune Parameters
+##### Recommended Parameters by Scale
 
-Edit configurations in `Main.java`:
-```java
-// HNSW
-VectorIndex hnsw = new JVectorHNSWIndex(
-    16,   // M - graph connectivity
-    200,  // efConstruction - build quality
-    100,  // efSearch - query accuracy
-    DistanceMetric.EUCLIDEAN
-);
+| Dataset Size |  M | efConstruction | efSearch | Reasoning                    |
+|-------------:|---:|---------------:|---------:|------------------------------|
+|          10K |  8 |            100 |      100 | Your optimal configuration ✓ |
+|         100K | 12 |            100 |  150–200 | Slightly denser graph        |
+|           1M | 16 |            100 |  200–400 | Compensate for scale         |
+|          10M | 24 |            200 |     500+ | Heavy compensation needed    |
 
-// IVF
-VectorIndex ivf = new IVFIndex(
-    100,  // nList - number of clusters
-    10    // nProbe - clusters to search
-);
-```
 
----
+## JVector-HNSW Benchmark Results (10K Dataset)
 
-## Contributing
+| Index Type   | Dataset Size |  M | efConstruction | efSearch | Build Time (ms) | Build Memory (MB) | P50 Latency (μs) | P95 Latency (μs) | P99 Latency (μs) | Throughput (QPS) | Avg Distance Calculations | Recall@10 (Avg) |
+|--------------|-------------:|---:|---------------:|---------:|----------------:|------------------:|-----------------:|-----------------:|-----------------:|-----------------:|--------------------------:|----------------:|
+| JVector-HNSW |       10,000 | 16 |            200 |      200 |             657 |                20 |          183.083 |          263.917 |          321.958 |         5,882.35 |                         - |           1.000 |
+| JVector-HNSW |       10,000 | 16 |            100 |      200 |             666 |                20 |          176.292 |          207.917 |          217.625 |         5,555.56 |                         - |           1.000 |
+| JVector-HNSW |       10,000 | 16 |            100 |      100 |             631 |                20 |          115.625 |          142.416 |          165.833 |        10,000.00 |                         - |           1.000 |
+| JVector-HNSW |       10,000 |  8 |            200 |      200 |             611 |                19 |          130.375 |          151.875 |          175.542 |         8,333.33 |                         - |           0.995 |
+| JVector-HNSW |       10,000 |  8 |            100 |      200 |             683 |                19 |          135.500 |          169.250 |          183.833 |         7,692.31 |                         - |           0.995 |
+| JVector-HNSW |       10,000 |  8 |            100 |      100 |             689 |                19 |           84.625 |          106.792 |          134.042 |        12,500.00 |                         - |           0.994 |
 
-Contributions welcome! Areas of interest:
 
-- [ ] Additional algorithms (LSH, ScaNN, DiskANN)
-- [ ] Product Quantization (PQ) compression
-- [ ] Distributed / sharded indexes
-- [ ] More datasets (GloVe, LAION, etc.)
-- [ ] GPU acceleration benchmarks
+### IVF Performance
 
----
+| Index Type | Dataset Size | nList | nProbe | Build Time (ms) | Build Memory (MB) | P50 Latency (μs) | P95 Latency (μs) | P99 Latency (μs) | Throughput (QPS) | Avg Distance Calculations | Recall@10 (Avg) |
+|------------|-------------:|------:|-------:|----------------:|------------------:|-----------------:|-----------------:|-----------------:|-----------------:|--------------------------:|----------------:|
+| IVF        |       10,000 |   100 |     10 |           1,034 |                11 |          185.459 |          268.917 |          314.042 |         5,000.00 |                  1,209.07 |           0.981 |
+| IVF        |       10,000 |   100 |     20 |           1,034 |                11 |          328.041 |          473.125 |          642.167 |         2,857.14 |                  2,276.38 |           0.998 |
+| IVF        |       10,000 |    50 |      5 |             651 |                11 |          206.041 |          300.875 |          317.250 |         4,761.90 |                  1,236.53 |           0.962 |
 
-## License
+## Unified Vector Index Comparison (10K Dataset, 128-D)
 
-MIT License - see [LICENSE](LICENSE) file for details.
+| Index Type | Library | Configuration          | Build Time (ms) | Build Memory (MB) | P50 Latency (us) | P95 Latency (us) | P99 Latency (us) | Throughput (QPS) | Avg Distance Calcs | Recall@10 | Notes                  |
+|------------|---------|------------------------|----------------:|------------------:|-----------------:|-----------------:|-----------------:|-----------------:|-------------------:|----------:|------------------------|
+| Flat       | Custom  | Brute-force            |             213 |                10 |           1026.6 |           1047.9 |           1100.5 |              952 |              10000 |     1.000 | Exact search, baseline |
+| IVF        | Custom  | nList=100, nProbe=10   |            1034 |                11 |            185.5 |            268.9 |            314.0 |             5000 |               1209 |     0.981 | Fast, lower recall     |
+| IVF        | Custom  | nList=100, nProbe=20   |            1034 |                11 |            328.0 |            473.1 |            642.2 |             2857 |               2276 |     0.998 | Higher recall          |
+| IVF        | Custom  | nList=50, nProbe=5     |             651 |                11 |            206.0 |            300.9 |            317.3 |             4762 |               1237 |     0.962 | Faster build           |
+| HNSW       | Jelmark | M=8, efC=100, efS=100  |            1211 |                16 |            103.8 |            130.5 |            146.3 |            10000 |                639 |     0.998 | Best trade-off         |
+| HNSW       | Jelmark | M=8, efC=200, efS=200  |            1845 |                16 |            174.2 |            213.7 |            348.3 |             6667 |               1056 |     1.000 | Max recall             |
+| HNSW       | Jelmark | M=16, efC=100, efS=100 |            1323 |                17 |            115.8 |            155.4 |            183.2 |            10000 |                831 |     0.998 | More memory            |
+| HNSW       | Jelmark | M=16, efC=200, efS=200 |            2071 |                17 |            197.5 |            249.3 |            393.2 |             5556 |               1375 |     1.000 | Overkill for 10K       |
+| HNSW       | JVector | M=8, efC=100, efS=100  |             689 |                19 |             84.6 |            106.8 |            134.0 |            12500 |                  - |     0.994 | Fastest queries        |
+| HNSW       | JVector | M=16, efC=100, efS=100 |             631 |                20 |            115.6 |            142.4 |            165.8 |            10000 |                  - |     1.000 | High recall            |
+| HNSW       | JVector | M=16, efC=200, efS=200 |             657 |                20 |            183.1 |            263.9 |            322.0 |             5882 |                  - |     1.000 | Slower, exact recall   |
 
----
+### Q: When is FLAT faster?
+FLAT is faster when you have few queries relative to dataset size. The formula is: if total queries × query_time < build_time, use FLAT. This happens with infrequent searches, validation workloads, or very small datasets under 1K vectors. Our benchmarks showed FLAT taking 1ms per query but zero build time, so 100 queries on 1M vectors is faster than building an index.
 
-## Acknowledgments
+### Q: When does HNSW win?
+HNSW wins for high-query-volume production systems needing low latency. It's 10x faster than FLAT and 2x faster than IVF on queries, achieving sub-millisecond response times. We saw 85μs queries with 99.4% recall. The build cost amortizes quickly - after 10K queries on 10K vectors, HNSW has already paid for itself. It's the standard for real-time search, recommendations, and RAG applications.
 
-- **Datasets:** [ANN Benchmarks](http://ann-benchmarks.com/)
-- **Libraries:** [JVector](https://github.com/jbellis/jvector), [hnswlib-jna](https://github.com/jelmerk/hnswlib)
-- **Inspiration:** FAISS, Annoy, Qdrant benchmarking methodologies
-
----
-
-## Contact
-
-**Kartikey Srivastava**
-
-- GitHub: [@Kartikk1127](https://github.com/Kartikk1127)
-- LinkedIn: [Connect with me](https://www.linkedin.com/in/kartikey-srivastava-bb913423a/)
-
-*Built while investigating vector search for GridGain Systems*
-
----
-
-**⭐ If you find this useful, please star the repository!**
+### Q: When does IVF make sense?
+IVF makes sense for batch processing, GPU acceleration, and when algorithmic simplicity is valued. It's k-means clustering which any engineer understands, versus HNSW's complex graph navigation. IVF works well for offline analytics like finding all duplicate images in a corpus, or for GPU deployment where parallelism matters more than sequential speed. It's also easier to debug and tune for teams without deep ANN expertise.

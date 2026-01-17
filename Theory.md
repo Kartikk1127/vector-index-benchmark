@@ -12,29 +12,28 @@ This document explains the **concepts, algorithms, trade-offs, and decision logi
 ### 1. Flat (Brute-force) Index
 
 - Computes distance against **every vector**
-
 - Guarantees **exact results (100% recall)**
-
 - Time complexity: **O(n)** per query
 
 **When it makes sense**
-
 - Very small datasets (<1K vectors)
-
 - Very low query volume
-
 - Validation or correctness testing
-
 ***
 
 
 ### 2. HNSW (Hierarchical Navigable Small World)
 
-- Graph-based Approximate Nearest Neighbor (ANN)
+**How it works:**
+- Builds a multi-layer graph where each node is a vector
+- Upper layers: sparse, long-range connections (highway)
+- Lower layers: dense, short-range connections (local streets)
+- Search: navigate from top layer down, getting progressively closer
 
-- Multi-layer proximity graph
-
-- Logarithmic-like query behavior in practice
+**Why it's fast:**
+- Logarithmic search complexity in practice
+- Skips irrelevant regions via hierarchical structure
+- Greedy graph traversal with beam search
 
 
 #### Core Parameters
@@ -42,48 +41,49 @@ This document explains the **concepts, algorithms, trade-offs, and decision logi
 ##### **M — Graph Connectivity**
 
 - Controls number of neighbors per node
-
 - Higher `M` → better recall, more memory, slower build
-
 
 ##### **efConstruction — Build Quality**
 
 - Controls graph construction accuracy
-
 - Higher values → longer build, marginal recall improvement
-
 
 ##### **efSearch — Query Accuracy vs Speed**
 
 - Controls how much of the graph is explored at query time
-
 - **Most important parameter**
-
 ***
 
 
 ### 3. IVF (Inverted File Index)
 
-- K-means clustering of vectors
+**How it works:**
+1. **Build:** K-means clusters vectors into nList groups
+2. **Search:** Find nProbe nearest centroids, search only those clusters
+3. **Tradeoff:** Speed (search subset) vs Accuracy (might miss neighbors in other clusters)
 
-- Queries search only selected clusters
-
-- Simpler mental model than HNSW
+**Two-phase search:**
+- Coarse: Compare query to all centroids (fast, nList comparisons)
+- Fine: Brute force within nProbe clusters (slower, but only subset)
 
 **Key Parameters**
 
 - `nList`: number of clusters
-
 - `nProbe`: number of clusters searched per query
-
 ***
 
 
 ## Distance Metrics
 
-- **Euclidean (L2)**
+**Euclidean (L2):**
+- Measures absolute distance in space
+- Use for: SIFT descriptors, general-purpose embeddings
+- Formula: sqrt(Σ(v1[i] - v2[i])²)
 
-- **Cosine similarity**
+**Cosine Similarity:**
+- Measures angle between vectors (direction, not magnitude)
+- Use for: Text embeddings, normalized vectors
+- Formula: (v1 · v2) / (||v1|| × ||v2||)
 
 ***
 
@@ -91,7 +91,7 @@ This document explains the **concepts, algorithms, trade-offs, and decision logi
 ## Recall vs Latency Trade-off
 
 | Index | Recall  | Latency   | Predictability |
-| ----- | ------- | --------- | -------------- |
+|-------|---------|-----------|----------------|
 | Flat  | 100%    | Slow      | Deterministic  |
 | HNSW  | 99–100% | Very Fast | Tunable        |
 | IVF   | 96–99%  | Fast      | Coarse         |
@@ -151,5 +151,24 @@ HNSW amortizes build cost quickly and delivers **sub-millisecond queries**.
 - Teams preferring algorithmic simplicity
 
 IVF is easier to debug and parallelize, especially on GPUs.
+
+***
+
+## Production Considerations
+
+**Memory:**
+- Flat: ~dimensions × vectors × 4 bytes (minimal)
+- HNSW: 2-3x Flat (stores graph structure)
+- IVF: Similar to Flat (cluster metadata is small)
+
+**Build Time:**
+- Flat: Instant (just load vectors)
+- HNSW: Minutes for millions (graph construction)
+- IVF: Depends on k-means iterations (20 iterations = slow)
+
+**Index Maintenance:**
+- Flat: Easy (append/delete instantly)
+- HNSW: Mark deleted, periodic cleanup needed
+- IVF: Cluster imbalance after modifications → rebuild needed
 
 ***

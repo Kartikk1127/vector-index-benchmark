@@ -10,6 +10,7 @@ import core.VectorIndex;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class JelmarkHNSWIndex implements VectorIndex {
     private final int m;
@@ -18,6 +19,7 @@ public class JelmarkHNSWIndex implements VectorIndex {
     private HnswIndex<String, float[], Vector, Float> index;
     private long distanceCalculations = 0;
     private final DistanceFunction<float[], Float> distanceFunction;
+    private final AtomicLong versionCounter = new AtomicLong(0);
 
     public JelmarkHNSWIndex(int m, int efConstruction, int efSearch) {
         this.m = m;
@@ -35,13 +37,15 @@ public class JelmarkHNSWIndex implements VectorIndex {
         System.out.println("Dataset size: " + vectors.size() + " vectors");
 
         long startTime = System.currentTimeMillis();
+        int maxCapacity = (int)(vectors.size() * 1.2);
 
         // Create HNSW index
         this.index = HnswIndex
-                .newBuilder(vectors.get(0).dimensions(), distanceFunction, vectors.size())
+                .newBuilder(vectors.get(0).dimensions(), distanceFunction, maxCapacity)
                 .withM(m)
                 .withEfConstruction(efConstruction)
                 .withEf(efSearch)
+                .withRemoveEnabled()
                 .build();
 
         System.out.println("Index structure created, now adding vectors...");
@@ -100,11 +104,17 @@ public class JelmarkHNSWIndex implements VectorIndex {
 
     @Override
     public void insert(Vector vector) {
-
+        long version = versionCounter.incrementAndGet();
+        Vector versionedVector = new Vector(vector.id(), vector.vector(), version);
+        boolean success = index.add(versionedVector);
+        if (!success) {
+            System.out.println("REJECTED: " + vector.id() + " with version " + version);
+        }
     }
 
     @Override
     public void delete(String vectorId) {
-
+        long version = versionCounter.incrementAndGet();
+        index.remove(vectorId,version);
     }
 }

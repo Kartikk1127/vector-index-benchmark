@@ -107,6 +107,13 @@
 - After 1k deletes: **0.9140** (−8.60%)
 - After re-insertion: **1.0000** (+9.41%)
 - After 5k deletes: **0.5330** (−46.70%)
+
+**Key Findings:**
+- Soft deletes are fast (0.58 μs) but cause severe search degradation
+- Inserts are 480× slower than deletes (277 μs vs 0.58 μs)
+- Re-insertions fully restore recall AND improve performance
+- HNSW with soft deletes becomes less efficient than brute force at high deletion rates
+- Requires explicit version management for insert/delete operations
 ---
 
 ## JVector-HNSW Benchmark (10K)

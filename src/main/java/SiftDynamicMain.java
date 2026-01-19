@@ -3,6 +3,7 @@ import core.QueryResult;
 import core.Vector;
 import core.VectorIndex;
 import dataset.DatasetLoader;
+import index.hnsw.JVectorHNSWIndex;
 import index.hnsw.JelmarkHNSWIndex;
 
 import java.io.IOException;
@@ -33,7 +34,7 @@ public class SiftDynamicMain {
 
         // Create index
         System.out.println("Creating HNSW index...");
-        VectorIndex index = new JelmarkHNSWIndex(16, 200, 200);
+        VectorIndex index = new JVectorHNSWIndex(8, 100, 200);
 
         // Test 1: Initial Build + Query
         System.out.println("\n===Test 1: Initial Build + Query===");

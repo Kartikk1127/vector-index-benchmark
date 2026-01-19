@@ -124,6 +124,46 @@
 | 16 | 100 | 100 |        631 |       20 |    115.6 |    142.4 |    165.8 | 10,000 |     1.000 |
 |  8 | 100 | 100 |        689 |       19 |     84.6 |    106.8 |    134.0 | 12,500 |     0.994 |
 
+### Dynamic Benchmark (Includes insertions, deletions and searching) — HNSW Index (SIFT Dataset)
+
+**Configuration**
+- Dataset: SIFT (10,000 vectors, 100 queries)
+- Implementation: **JVector HNSW**
+- Parameters: `M=16`, `efConstruction=200`, `efSearch=200`
+
+| Test Phase                  | Index Size (Vectors) | Operation      | Build Time (ms) | Build Memory (MB) | P50 Latency (μs) | P95 Latency (μs) | P99 Latency (μs) | Throughput (QPS / ops/sec) | Avg Dist Calcs |  Recall@10 | Performance / Recall Impact     |
+|-----------------------------|---------------------:|----------------|----------------:|------------------:|-----------------:|-----------------:|-----------------:|---------------------------:|---------------:|-----------:|---------------------------------|
+| Initial Build + Query       |               10,000 | Build + Search |             824 |                21 |           186.67 |                — |                — |               5,000.00 QPS |              — | **1.0000** | Baseline                        |
+| Delete Performance (1k)     |                9,000 | Delete 1,000   |               — |                 — |             0.46 |             0.79 |             3.04 |      1,000,000 deletes/sec |              — |          — | —                               |
+| Search After 1k Deletes     |                9,000 | Search         |               — |                 — |           221.42 |                — |                — |               4,166.67 QPS |              — | **0.9140** | **−8.60% recall**               |
+| Insert Performance (1k)     |               10,000 | Insert 1,000   |             204 |                 — |           193.54 |           301.33 |           395.96 |       4,901.96 inserts/sec |              — |          — | —                               |
+| Search After Re-insert      |               10,000 | Search         |               — |                 — |           187.38 |                — |                — |               4,166.67 QPS |              — | **1.0000** | **0.4% slower, +9.41% recall**  |
+| Search Before Large Deletes |               10,000 | Search         |               — |                 — |           166.63 |           202.92 |                — |               5,882.35 QPS |           0.00 |     1.0000 | Baseline                        |
+| Large Delete Performance    |                    — | Delete 5,000   |             536 |                 — |                — |                — |                — |                          — |              — |          — | —                               |
+| Search After 5k Deletes     |                5,000 | Search         |               — |                 — |           148.38 |           207.63 |                — |               6,666.67 QPS |           0.00 | **0.5330** | **11.0% faster, −46.7% recall** |
+
+### Final Summary
+
+| Metric             | Value  |
+|--------------------|--------|
+| Initial Index Size | 11,000 |
+| Deleted (phase 1)  | 1,000  |
+| Re-inserted        | 1,000  |
+| Deleted (phase 2)  | 5,000  |
+| Final Index Size   | 5,000  |
+
+**Performance Impact**
+- Delete latency (1k): **P50 = 0.46 μs**
+- Insert latency (1k): **P50 = 193.54 μs**
+- Insert degradation: **0.4%**
+- Large delete impact (5k): **11.0% faster**
+
+**Recall Impact**
+- Baseline recall: **1.0000**
+- After 1k deletes: **0.9140** (−8.60%)
+- After re-insertion: **1.0000** (+9.41%)
+- After 5k deletes: **0.5330** (−46.70%)
+
 ---
 
 ## IVF Performance (10K)

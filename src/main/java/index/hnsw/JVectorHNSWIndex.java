@@ -5,9 +5,7 @@ import core.Vector;
 import core.VectorIndex;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 import io.github.jbellis.jvector.graph.*;
 import io.github.jbellis.jvector.graph.similarity.BuildScoreProvider;
@@ -25,15 +23,22 @@ public class JVectorHNSWIndex implements VectorIndex {
     private final int efConstruction;
     private int efSearch; // not final since people tend to tune this during runtime
 
-    private ImmutableGraphIndex graph;
+    private GraphIndexBuilder builder;
     private List<Vector> vectors;
+    private List<VectorFloat<?>> jvectorVectors;
     private RandomAccessVectorValues ravv;
+    private BuildScoreProvider bsp;
+    private int dimension;
     private long distanceCalculations = 0;
+    private Map<String, Integer> idToNodeMap;
+    private int softDeleteCount;
+    private int liveNodeCount;
 
     public JVectorHNSWIndex(int m, int efConstruction, int efSearch) {
         this.m = m;
         this.efConstruction = efConstruction;
         this.efSearch = efSearch;
+        this.liveNodeCount = 0;
     }
 
     @Override
@@ -42,16 +47,20 @@ public class JVectorHNSWIndex implements VectorIndex {
         System.out.println("Dataset size: " + vectors.size() + " vectors");
 
         this.vectors = vectors;
+        this.dimension = vectors.get(0).dimensions();
         long startTime = System.currentTimeMillis();
 
         // convert to vector float list
-        ArrayList<VectorFloat<?>> jvectorVectors = new ArrayList<>();
-        for (Vector v : vectors) {
+        this.jvectorVectors = new ArrayList<>();
+        this.idToNodeMap = new HashMap<>();
+        for (int i = 0; i < vectors.size(); i++) {
+            Vector v = vectors.get(i);
             VectorFloat<?> vf = vts.createFloatVector(v.dimensions());
-            for (int i = 0; i < v.dimensions(); i++) {
-                vf.set(i, v.vector()[i]);
+            for (int j = 0; j < v.dimensions(); j++) {
+                vf.set(j, v.vector()[j]);
             }
             jvectorVectors.add(vf);
+            idToNodeMap.put(v.id(), i);
         }
 
         // create ravv
@@ -59,12 +68,12 @@ public class JVectorHNSWIndex implements VectorIndex {
         this.ravv = new ListRandomAccessVectorValues(jvectorVectors,dimension);
 
         // build score provider
-        BuildScoreProvider bsp = BuildScoreProvider.randomAccessScoreProvider(ravv, VectorSimilarityFunction.EUCLIDEAN);
+        this.bsp = BuildScoreProvider.randomAccessScoreProvider(ravv, VectorSimilarityFunction.EUCLIDEAN);
 
         System.out.println("Index structure created, now adding vectors...");
 
         //build the graph
-        try (GraphIndexBuilder builder = new GraphIndexBuilder(
+        this.builder = new GraphIndexBuilder(
                 bsp,
                 dimension,
                 m,
@@ -73,11 +82,9 @@ public class JVectorHNSWIndex implements VectorIndex {
                 1.2f,
                 true,
                 false
-        )) {
-            this.graph = builder.build(ravv);
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to build JVector index", e);
-        }
+        );
+        builder.build(ravv);
+        this.liveNodeCount = builder.getGraph().size(0);
 
         long totalTime = System.currentTimeMillis() - startTime;
         System.out.printf("Build completed in %.2fs\n", totalTime / 1000.0);
@@ -85,7 +92,7 @@ public class JVectorHNSWIndex implements VectorIndex {
 
     @Override
     public int size() {
-        return vectors.size();
+        return liveNodeCount;
     }
 
     @Override
@@ -96,9 +103,9 @@ public class JVectorHNSWIndex implements VectorIndex {
             queryVector.set(i, query[i]);
         }
 
-        try (GraphSearcher searcher = new GraphSearcher(graph)) {
-            SearchScoreProvider ssp = DefaultSearchScoreProvider.exact(queryVector, VectorSimilarityFunction.EUCLIDEAN, ravv);
-            SearchResult result = searcher.search(ssp, k, efSearch, 0.0F, 0.0F, Bits.ALL);
+        try (GraphSearcher searcher = new GraphSearcher(builder.getGraph())) {
+            SearchScoreProvider ssp = bsp.searchProviderFor(queryVector);
+            SearchResult result = searcher.search(ssp, k, efSearch, 0.0F, 0.0F, builder.getGraph().getView().liveNodes());
 
             // convert to our format
             List<QueryResult> results = new ArrayList<>();
@@ -129,11 +136,49 @@ public class JVectorHNSWIndex implements VectorIndex {
 
     @Override
     public void insert(Vector vector) {
+        VectorFloat<?> vf = vts.createFloatVector(vector.dimensions());
+        for (int i = 0; i < vector.dimensions(); i++) {
+            vf.set(i, vector.vector()[i]);
+        }
+        // add to lists
+        int nodeId = vectors.size();
+        vectors.add(vector);
+        jvectorVectors.add(vf);
+        idToNodeMap.put(vector.id(), nodeId);
 
+        // use add graph node to insert in graph
+        builder.addGraphNode(nodeId,vf);
+        liveNodeCount++;
     }
 
     @Override
     public void delete(String vectorId) {
+        Integer nodeId = idToNodeMap.get(vectorId);
+        if (nodeId == null) return;
+        builder.markNodeDeleted(nodeId);
+        softDeleteCount++;
+        liveNodeCount--;
+        if (softDeleteCount>5000) {
+//            System.out.println("Soft delete threshold reached (" + softDeleteCount + " deleted nodes). Triggering cleanup...");
+            cleanup();
+        }
+    }
 
+    // cleanup deleted nodes - this is the blocking compaction operation
+    // call this periodically when delete percentage gets too high
+    public long cleanup() {
+        if (softDeleteCount==0) {
+            System.out.println("No deleted nodes to cleanup");
+            return 0;
+        }
+//        System.out.println("Starting JVector cleanup (compaction)...");
+        long startTime = System.currentTimeMillis();
+        long freedMemory = builder.removeDeletedNodes();
+
+        softDeleteCount = 0;
+        this.liveNodeCount = builder.getGraph().size(0);
+
+        // J-vector's built-in cleanup repairs the graph and removes deleted nodes
+        return freedMemory;
     }
 }

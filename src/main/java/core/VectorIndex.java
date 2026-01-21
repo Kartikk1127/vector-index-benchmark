@@ -11,4 +11,6 @@ public interface VectorIndex {
     String getName();
     void insert(Vector vector);
     void delete(String vectorId);
+
+    void insertBatch(List<Vector> vectors);
 }

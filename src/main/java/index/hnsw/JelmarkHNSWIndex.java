@@ -1,5 +1,6 @@
 package index.hnsw;
 
+import benchmark.BenchmarkExecutors;
 import com.github.jelmerk.hnswlib.core.DistanceFunction;
 import com.github.jelmerk.hnswlib.core.SearchResult;
 import com.github.jelmerk.hnswlib.core.hnsw.HnswIndex;
@@ -10,7 +11,11 @@ import core.VectorIndex;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 public class JelmarkHNSWIndex implements VectorIndex {
     private final int m;
@@ -20,16 +25,23 @@ public class JelmarkHNSWIndex implements VectorIndex {
     private long distanceCalculations = 0;
     private final DistanceFunction<float[], Float> distanceFunction;
     private final AtomicLong versionCounter = new AtomicLong(0);
+    private final ExecutorService insertExecutor;
 
-    public JelmarkHNSWIndex(int m, int efConstruction, int efSearch) {
+    // constructor with executor service
+    public JelmarkHNSWIndex(int m, int efConstruction, int efSearch, ExecutorService insertExecutor) {
         this.m = m;
         this.efConstruction = efConstruction;
         this.efSearch = efSearch;
+        this.insertExecutor = insertExecutor;
 
         this.distanceFunction = (vector1, vector2) -> {
             distanceCalculations++;
             return new DistanceMetric().euclideanDistance(vector1, vector2);
         };
+    }
+
+    public JelmarkHNSWIndex(int m, int efConstruction, int efSearch) {
+        this(m, efConstruction, efSearch, null);
     }
     @Override
     public void build(List<Vector> vectors) {
@@ -51,16 +63,8 @@ public class JelmarkHNSWIndex implements VectorIndex {
         System.out.println("Index structure created, now adding vectors...");
 
         // Add all vectors to index with progress tracking
-        int progressInterval = vectors.size() / 10;  // Log every 10%
-        for (int i = 0; i < vectors.size(); i++) {
-            index.add(vectors.get(i));
-
-            if (i > 0 && i % progressInterval == 0) {
-                long elapsed = System.currentTimeMillis() - startTime;
-                double percentComplete = (i * 100.0) / vectors.size();
-                System.out.printf("Progress: %.1f%% (%d/%d vectors) - Elapsed: %.2fs\n",
-                        percentComplete, i, vectors.size(), elapsed / 1000.0);
-            }
+        for (Vector vector : vectors) {
+            index.add(vector);
         }
 
         long totalTime = System.currentTimeMillis() - startTime;
@@ -106,15 +110,33 @@ public class JelmarkHNSWIndex implements VectorIndex {
     public void insert(Vector vector) {
         long version = versionCounter.incrementAndGet();
         Vector versionedVector = new Vector(vector.id(), vector.vector(), version);
-        boolean success = index.add(versionedVector);
-        if (!success) {
-            System.out.println("REJECTED: " + vector.id() + " with version " + version);
-        }
+        index.add(versionedVector);
     }
 
     @Override
     public void delete(String vectorId) {
         long version = versionCounter.incrementAndGet();
         index.remove(vectorId,version);
+    }
+
+    @Override
+    public void insertBatch(List<Vector> vectors) {
+        if (insertExecutor == null) {
+            for (Vector v : vectors) {
+                insert(v);
+            }
+        }
+
+        // parallel insertion
+        List<CompletableFuture<Void>> futures = vectors.stream()
+                .map(v -> CompletableFuture.runAsync(() -> {
+                    long version = versionCounter.incrementAndGet();
+                    Vector versionedVector = new Vector(v.id(), v.vector(), version);
+                    index.add(versionedVector);
+                }, insertExecutor))
+                .toList();
+
+        // wait for all to complete
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
     }
 }

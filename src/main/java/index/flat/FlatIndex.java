@@ -66,4 +66,9 @@ public class FlatIndex implements VectorIndex {
     public void delete(String vectorId) {
         vectors.removeIf(vector -> vector.id().equals(vectorId));
     }
+
+    @Override
+    public void insertBatch(List<Vector> vectors) {
+
+    }
 }

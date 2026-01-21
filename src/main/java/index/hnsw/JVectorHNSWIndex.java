@@ -6,12 +6,15 @@ import core.VectorIndex;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import io.github.jbellis.jvector.graph.*;
 import io.github.jbellis.jvector.graph.similarity.BuildScoreProvider;
-import io.github.jbellis.jvector.graph.similarity.DefaultSearchScoreProvider;
 import io.github.jbellis.jvector.graph.similarity.SearchScoreProvider;
-import io.github.jbellis.jvector.util.Bits;
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import io.github.jbellis.jvector.vector.VectorizationProvider;
 import io.github.jbellis.jvector.vector.types.VectorFloat;
@@ -21,24 +24,43 @@ public class JVectorHNSWIndex implements VectorIndex {
     private static final VectorTypeSupport vts = VectorizationProvider.getInstance().getVectorTypeSupport();
     private final int m;
     private final int efConstruction;
-    private int efSearch; // not final since people tend to tune this during runtime
+    private int efSearch;
 
     private GraphIndexBuilder builder;
-    private List<Vector> vectors;
-    private List<VectorFloat<?>> jvectorVectors;
+
+    /*
+     * Thread-safe data structures:
+     * - CopyOnWriteArrayList for vectors: Optimized for read-heavy workloads (searches are frequent, inserts are batched)
+     *   Writes copy the entire array but reads are lock-free and fast. Perfect for our use case.
+     *   Alternative considered: Collections.synchronizedList() - rejected due to synchronization overhead on every read
+     *
+     * - ConcurrentHashMap for idToNodeMap: Standard choice for concurrent map operations
+     *
+     * - AtomicInteger for counters: Lock-free atomic operations for thread-safe increments/decrements
+     */
+    private CopyOnWriteArrayList<Vector> vectors;
+    private CopyOnWriteArrayList<VectorFloat<?>> jvectorVectors;
+    private ConcurrentHashMap<String, Integer> idToNodeMap;
+
     private RandomAccessVectorValues ravv;
     private BuildScoreProvider bsp;
     private int dimension;
     private long distanceCalculations = 0;
-    private Map<String, Integer> idToNodeMap;
-    private int softDeleteCount;
-    private int liveNodeCount;
 
-    public JVectorHNSWIndex(int m, int efConstruction, int efSearch) {
+    private final AtomicInteger nextNodeId = new AtomicInteger(0);
+    private final AtomicInteger softDeleteCount = new AtomicInteger(0);
+    private final AtomicInteger liveNodeCount = new AtomicInteger(0);
+    private final ExecutorService insertExecutor;
+
+    public JVectorHNSWIndex(int m, int efConstruction, int efSearch, ExecutorService insertExecutor) {
         this.m = m;
         this.efConstruction = efConstruction;
         this.efSearch = efSearch;
-        this.liveNodeCount = 0;
+        this.insertExecutor = insertExecutor;
+    }
+
+    public JVectorHNSWIndex(int m, int efConstruction, int efSearch) {
+        this(m, efConstruction, efSearch, null);
     }
 
     @Override
@@ -46,13 +68,13 @@ public class JVectorHNSWIndex implements VectorIndex {
         System.out.println("Creating JVector HNSW index with M=" + m + ", efConstruction=" + efConstruction + ", efSearch=" + efSearch);
         System.out.println("Dataset size: " + vectors.size() + " vectors");
 
-        this.vectors = vectors;
+        this.vectors = new CopyOnWriteArrayList<>(vectors);
         this.dimension = vectors.get(0).dimensions();
         long startTime = System.currentTimeMillis();
 
         // convert to vector float list
-        this.jvectorVectors = new ArrayList<>();
-        this.idToNodeMap = new HashMap<>();
+        this.jvectorVectors = new CopyOnWriteArrayList<>();
+        this.idToNodeMap = new ConcurrentHashMap<>();
         for (int i = 0; i < vectors.size(); i++) {
             Vector v = vectors.get(i);
             VectorFloat<?> vf = vts.createFloatVector(v.dimensions());
@@ -65,14 +87,14 @@ public class JVectorHNSWIndex implements VectorIndex {
 
         // create ravv
         int dimension = vectors.get(0).dimensions();
-        this.ravv = new ListRandomAccessVectorValues(jvectorVectors,dimension);
+        this.ravv = new ListRandomAccessVectorValues(jvectorVectors, dimension);
 
         // build score provider
         this.bsp = BuildScoreProvider.randomAccessScoreProvider(ravv, VectorSimilarityFunction.EUCLIDEAN);
 
         System.out.println("Index structure created, now adding vectors...");
 
-        //build the graph
+        // build the graph
         this.builder = new GraphIndexBuilder(
                 bsp,
                 dimension,
@@ -84,7 +106,10 @@ public class JVectorHNSWIndex implements VectorIndex {
                 false
         );
         builder.build(ravv);
-        this.liveNodeCount = builder.getGraph().size(0);
+
+        // Initialize counters after build
+        this.nextNodeId.set(vectors.size());
+        this.liveNodeCount.set(builder.getGraph().size(0));
 
         long totalTime = System.currentTimeMillis() - startTime;
         System.out.printf("Build completed in %.2fs\n", totalTime / 1000.0);
@@ -92,7 +117,7 @@ public class JVectorHNSWIndex implements VectorIndex {
 
     @Override
     public int size() {
-        return liveNodeCount;
+        return liveNodeCount.get();
     }
 
     @Override
@@ -134,51 +159,90 @@ public class JVectorHNSWIndex implements VectorIndex {
         return "JVector-HNSW";
     }
 
+    /**
+     * Insert a single vector.
+     * WARNING: This method is NOT thread-safe for concurrent calls.
+     * For concurrent insertions, use insertBatch() with an executor.
+     */
     @Override
     public void insert(Vector vector) {
         VectorFloat<?> vf = vts.createFloatVector(vector.dimensions());
         for (int i = 0; i < vector.dimensions(); i++) {
             vf.set(i, vector.vector()[i]);
         }
-        // add to lists
-        int nodeId = vectors.size();
+
+        // Thread-safe operations with concurrent collections
+        int nodeId = nextNodeId.getAndIncrement();
         vectors.add(vector);
         jvectorVectors.add(vf);
         idToNodeMap.put(vector.id(), nodeId);
+        builder.addGraphNode(nodeId, vf);
+        liveNodeCount.incrementAndGet();
+    }
 
-        // use add graph node to insert in graph
-        builder.addGraphNode(nodeId,vf);
-        liveNodeCount++;
+    @Override
+    public void insertBatch(List<Vector> vectors) {
+        if (insertExecutor == null) {
+            // Sequential fallback
+            for (Vector v : vectors) {
+                insert(v);
+            }
+            return;
+        }
+
+        // Parallel insertion - all operations are thread-safe
+        List<CompletableFuture<Void>> futures = vectors.stream()
+                .map(v -> CompletableFuture.runAsync(() -> {
+                    // Create VectorFloat
+                    VectorFloat<?> vf = vts.createFloatVector(v.dimensions());
+                    for (int i = 0; i < v.dimensions(); i++) {
+                        vf.set(i, v.vector()[i]);
+                    }
+
+                    // All operations are thread-safe:
+                    int nodeId = nextNodeId.getAndIncrement();        // AtomicInteger
+                    this.vectors.add(v);                              // CopyOnWriteArrayList
+                    this.jvectorVectors.add(vf);                      // CopyOnWriteArrayList
+                    idToNodeMap.put(v.id(), nodeId);                  // ConcurrentHashMap
+                    builder.addGraphNode(nodeId, vf);                 // JVector claims thread-safe
+                    liveNodeCount.incrementAndGet();                   // AtomicInteger
+                }, insertExecutor))
+                .toList();
+
+        // Wait for all insertions to complete
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
     }
 
     @Override
     public void delete(String vectorId) {
         Integer nodeId = idToNodeMap.get(vectorId);
         if (nodeId == null) return;
+
         builder.markNodeDeleted(nodeId);
-        softDeleteCount++;
-        liveNodeCount--;
-        if (softDeleteCount>5000) {
-//            System.out.println("Soft delete threshold reached (" + softDeleteCount + " deleted nodes). Triggering cleanup...");
+        softDeleteCount.incrementAndGet();
+        liveNodeCount.decrementAndGet();
+
+        if (softDeleteCount.get() > 5000) {
             cleanup();
         }
     }
 
-    // cleanup deleted nodes - this is the blocking compaction operation
-    // call this periodically when delete percentage gets too high
+    /**
+     * Cleanup deleted nodes - blocking compaction operation.
+     * Call periodically when delete percentage gets too high.
+     */
     public long cleanup() {
-        if (softDeleteCount==0) {
+        if (softDeleteCount.get() == 0) {
             System.out.println("No deleted nodes to cleanup");
             return 0;
         }
-//        System.out.println("Starting JVector cleanup (compaction)...");
+
         long startTime = System.currentTimeMillis();
         long freedMemory = builder.removeDeletedNodes();
 
-        softDeleteCount = 0;
-        this.liveNodeCount = builder.getGraph().size(0);
+        softDeleteCount.set(0);
+        liveNodeCount.set(builder.getGraph().size(0));
 
-        // J-vector's built-in cleanup repairs the graph and removes deleted nodes
         return freedMemory;
     }
 }

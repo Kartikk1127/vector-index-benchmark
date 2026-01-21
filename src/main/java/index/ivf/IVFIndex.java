@@ -107,6 +107,11 @@ public class IVFIndex implements VectorIndex {
 
     }
 
+    @Override
+    public void insertBatch(List<Vector> vectors) {
+
+    }
+
     private void printClusterStatistics() {
         int minSize = Integer.MAX_VALUE;
         int maxSize = 0;

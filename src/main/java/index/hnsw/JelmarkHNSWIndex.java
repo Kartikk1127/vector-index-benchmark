@@ -120,7 +120,7 @@ public class JelmarkHNSWIndex implements VectorIndex {
     }
 
     @Override
-    public void insertBatch(List<Vector> vectors) {
+    public void insertAsync(List<Vector> vectors) {
         if (insertExecutor == null) {
             for (Vector v : vectors) {
                 insert(v);
@@ -138,5 +138,10 @@ public class JelmarkHNSWIndex implements VectorIndex {
 
         // wait for all to complete
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+    }
+
+    @Override
+    public CompletableFuture<List<QueryResult>> searchAsync(float[] query, int k, String dataset) {
+        return null;
     }
 }

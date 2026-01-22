@@ -8,6 +8,7 @@ import core.VectorIndex;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 public class FlatIndex implements VectorIndex {
 
@@ -68,7 +69,12 @@ public class FlatIndex implements VectorIndex {
     }
 
     @Override
-    public void insertBatch(List<Vector> vectors) {
+    public void insertAsync(List<Vector> vectors) {
 
+    }
+
+    @Override
+    public CompletableFuture<List<QueryResult>> searchAsync(float[] query, int k, String dataset) {
+        return null;
     }
 }

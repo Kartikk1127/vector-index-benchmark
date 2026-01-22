@@ -27,20 +27,9 @@ public class JVectorHNSWIndex implements VectorIndex {
     private int efSearch;
 
     private GraphIndexBuilder builder;
-
-    /*
-     * Thread-safe data structures:
-     * - CopyOnWriteArrayList for vectors: Optimized for read-heavy workloads (searches are frequent, inserts are batched)
-     *   Writes copy the entire array but reads are lock-free and fast. Perfect for our use case.
-     *   Alternative considered: Collections.synchronizedList() - rejected due to synchronization overhead on every read
-     *
-     * - ConcurrentHashMap for idToNodeMap: Standard choice for concurrent map operations
-     *
-     * - AtomicInteger for counters: Lock-free atomic operations for thread-safe increments/decrements
-     */
-    private CopyOnWriteArrayList<Vector> vectors;
-    private CopyOnWriteArrayList<VectorFloat<?>> jvectorVectors;
-    private ConcurrentHashMap<String, Integer> idToNodeMap;
+    private ArrayList<Vector> vectors;
+    private ArrayList<VectorFloat<?>> jvectorVectors;
+    private HashMap<String, Integer> idToNodeMap;
 
     private RandomAccessVectorValues ravv;
     private BuildScoreProvider bsp;
@@ -68,13 +57,13 @@ public class JVectorHNSWIndex implements VectorIndex {
         System.out.println("Creating JVector HNSW index with M=" + m + ", efConstruction=" + efConstruction + ", efSearch=" + efSearch);
         System.out.println("Dataset size: " + vectors.size() + " vectors");
 
-        this.vectors = new CopyOnWriteArrayList<>(vectors);
+        this.vectors = new ArrayList<>(vectors);
         this.dimension = vectors.get(0).dimensions();
         long startTime = System.currentTimeMillis();
 
         // convert to vector float list
-        this.jvectorVectors = new CopyOnWriteArrayList<>();
-        this.idToNodeMap = new ConcurrentHashMap<>();
+        this.jvectorVectors = new ArrayList<>();
+        this.idToNodeMap = new HashMap<>();
         for (int i = 0; i < vectors.size(); i++) {
             Vector v = vectors.get(i);
             VectorFloat<?> vf = vts.createFloatVector(v.dimensions());
@@ -162,7 +151,7 @@ public class JVectorHNSWIndex implements VectorIndex {
     /**
      * Insert a single vector.
      * WARNING: This method is NOT thread-safe for concurrent calls.
-     * For concurrent insertions, use insertBatch() with an executor.
+     * For concurrent insertions, use insertAsync() with an executor.
      */
     @Override
     public void insert(Vector vector) {
@@ -180,8 +169,11 @@ public class JVectorHNSWIndex implements VectorIndex {
         liveNodeCount.incrementAndGet();
     }
 
+    // record to hold insertion data
+    private record InsertTask(int nodeId, VectorFloat<?> vf) {}
+
     @Override
-    public void insertBatch(List<Vector> vectors) {
+    public void insertAsync(List<Vector> vectors) {
         if (insertExecutor == null) {
             // Sequential fallback
             for (Vector v : vectors) {
@@ -190,27 +182,36 @@ public class JVectorHNSWIndex implements VectorIndex {
             return;
         }
 
-        // Parallel insertion - all operations are thread-safe
-        List<CompletableFuture<Void>> futures = vectors.stream()
-                .map(v -> CompletableFuture.runAsync(() -> {
-                    // Create VectorFloat
-                    VectorFloat<?> vf = vts.createFloatVector(v.dimensions());
-                    for (int i = 0; i < v.dimensions(); i++) {
-                        vf.set(i, v.vector()[i]);
-                    }
+        // sequential preparation
+        List<InsertTask> tasks = new ArrayList<>(vectors.size());
+        for (Vector v : vectors) {
+            VectorFloat<?> vf = vts.createFloatVector(v.dimensions());
+            for (int i = 0; i < v.dimensions(); i++) {
+                vf.set(i,v.vector()[i]);
+            }
 
-                    // All operations are thread-safe:
-                    int nodeId = nextNodeId.getAndIncrement();        // AtomicInteger
-                    this.vectors.add(v);                              // CopyOnWriteArrayList
-                    this.jvectorVectors.add(vf);                      // CopyOnWriteArrayList
-                    idToNodeMap.put(v.id(), nodeId);                  // ConcurrentHashMap
-                    builder.addGraphNode(nodeId, vf);                 // JVector claims thread-safe
-                    liveNodeCount.incrementAndGet();                   // AtomicInteger
-                }, insertExecutor))
+            // assign node id and update data structures
+            int nodeId = nextNodeId.getAndIncrement();
+            this.vectors.add(v);
+            this.jvectorVectors.add(vf);
+            idToNodeMap.put(v.id(),nodeId);
+            liveNodeCount.incrementAndGet();
+            tasks.add(new InsertTask(nodeId,vf));
+        }
+        // parallel graph insertion
+        List<CompletableFuture<Void>> futures = tasks.stream()
+                .map(task -> CompletableFuture.runAsync(() -> builder.addGraphNode(task.nodeId, task.vf), insertExecutor))
                 .toList();
-
-        // Wait for all insertions to complete
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+    }
+
+    @Override
+    public CompletableFuture<List<QueryResult>> searchAsync(float[] query, int k, String dataset) {
+        if (insertExecutor == null) {
+            // Fallback to synchronous execution wrapped in completed future
+            return CompletableFuture.completedFuture(search(query, k, dataset));
+        }
+        return CompletableFuture.supplyAsync(() -> search(query, k, dataset), insertExecutor);
     }
 
     @Override
